@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>지도학습과 분류 — 나만의 분류 AI 만들기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font-family:'Noto Sans KR',sans-serif;background:#3b2a1d;display:flex;flex-direction:column;min-height:100vh;padding:14px}
+button{font-family:inherit;cursor:pointer}
+input,textarea{font-family:inherit}
+.hidden{display:none!important}
+
+/* ===== 나무 테두리 + 칠판 ===== */
+.frame{flex:1;display:flex;flex-direction:column;border-radius:14px;padding:14px;
+  background:linear-gradient(135deg,#a0703f,#7a4f28 45%,#946339 70%,#6e4422);
+  box-shadow:0 18px 40px rgba(0,0,0,.45), inset 0 2px 3px rgba(255,255,255,.25)}
+.board{flex:1;position:relative;border-radius:6px;overflow:hidden;
+  background:radial-gradient(ellipse at 20% 15%,rgba(255,255,255,.07),transparent 55%),
+    radial-gradient(ellipse at 80% 85%,rgba(255,255,255,.05),transparent 50%),
+    radial-gradient(ellipse at 60% 40%,rgba(0,0,0,.18),transparent 70%),#2f5a43;
+  box-shadow:inset 0 0 60px rgba(0,0,0,.55);padding:20px 28px 26px;display:flex;flex-direction:column;min-height:540px}
+.board::before{content:'';position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background:repeating-linear-gradient(100deg,transparent 0 40px,rgba(255,255,255,.018) 40px 90px,transparent 90px 160px)}
+.chalk{font-family:'Gaegu',cursive;color:#f4f4ee;text-shadow:0 0 1px rgba(255,255,255,.9),0 0 6px rgba(255,255,255,.18)}
+.y{color:#fff3a6}.p{color:#ffc2d1}.b{color:#b8e4ff}.g{color:#c8f5c0}
+
+.scene{position:relative;z-index:1;flex:1;display:flex;flex-direction:column;animation:fadeIn .5s;min-height:0}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.tagrow{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
+.stage-tag{font-size:14px;font-weight:900;color:#2f5a43;background:#fff3a6;padding:3px 12px;border-radius:999px}
+.dl-tag{font-size:12.5px;font-weight:700;color:#e8fff0;border:1.5px solid rgba(200,245,192,.7);padding:2px 10px;border-radius:999px}
+.dl-tag::before{content:'#';opacity:.7}
+.s-title{margin:0;font-size:clamp(30px,3.5vw,48px);line-height:1.15}
+.s-line{height:3px;margin:10px 0 14px;background:rgba(255,255,255,.5);border-radius:3px}
+.cols{flex:1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:18px;min-height:0}
+@media(max-width:900px){.cols{grid-template-columns:1fr}}
+.cbox{border:2px dashed rgba(255,255,255,.35);border-radius:14px;padding:14px 18px;background:rgba(0,0,0,.12)}
+.cbox h3{margin:0 0 8px;font-size:28px}
+.step-list{margin:0;padding-left:0;list-style:none;font-size:clamp(22px,2vw,28px);line-height:1.5}
+.step-list li{display:flex;gap:10px}
+.step-list .n{flex-shrink:0;width:34px;height:34px;border:2px solid currentColor;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;margin-top:4px}
+
+/* 창(에디터·채팅) */
+.vibe{flex:1;display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.25fr);gap:18px;min-height:0}
+@media(max-width:900px){.vibe{grid-template-columns:1fr}}
+.win{background:#0f172a;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.4);display:flex;flex-direction:column;overflow:hidden;min-height:340px}
+.win-bar{display:flex;align-items:center;gap:7px;padding:9px 14px;background:#1e293b;color:#94a3b8;font-size:13px;font-weight:700}
+.win-bar i{width:11px;height:11px;border-radius:50%;display:inline-block}
+.sp{flex:1}
+.chat{flex:1;padding:16px;display:flex;flex-direction:column;gap:12px;overflow:auto}
+.bubble{max-width:92%;padding:12px 14px;border-radius:14px;font-size:15.5px;line-height:1.6;white-space:pre-wrap}
+.bubble.me{align-self:flex-end;background:#4f46e5;color:#fff;border-bottom-right-radius:4px}
+.bubble.ai{align-self:flex-start;background:#1e293b;color:#e2e8f0;border-bottom-left-radius:4px}
+.caret::after{content:'▍';animation:blink .8s infinite;margin-left:1px}
+@keyframes blink{50%{opacity:0}}
+.code{flex:1;margin:0;padding:12px 16px;font:13.5px/1.6 ui-monospace,Consolas,monospace;color:#e2e8f0;overflow:auto;white-space:pre-wrap}
+.code .ln{color:#475569;display:inline-block;width:28px;user-select:none}
+.k{color:#c084fc}.s{color:#86efac}.c{color:#64748b;font-style:italic}.t{color:#7dd3fc}
+.stats{display:flex;gap:10px;padding:9px 14px;background:#1e293b;align-items:center;flex-wrap:wrap}
+.pill{background:#0f172a;color:#cbd5e1;font-size:13px;font-weight:700;padding:5px 11px;border-radius:999px}
+.pill b{color:#fde68a}
+.cta{background:#fff3a6;color:#3b2a1d;border:none;border-radius:12px;padding:10px 18px;font-weight:900;font-size:16px;box-shadow:0 4px 0 #c9b95e}
+.cta:active{transform:translateY(2px);box-shadow:0 2px 0 #c9b95e}
+.cta.big{font-size:20px;padding:13px 26px}
+.cta.ghost{background:transparent;color:#fff3a6;border:2px solid #fff3a6;box-shadow:none}
+
+/* 분류 앱 시연 */
+.app{flex:1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+@media(max-width:900px){.app{grid-template-columns:1fr}}
+.cam{position:relative;background:#e9eef3;border-radius:14px;display:flex;align-items:center;justify-content:center;min-height:290px;overflow:hidden;border:6px solid #0f172a;transition:border-color .3s}
+.cam .rec{position:absolute;top:10px;left:12px;font:700 13px 'Noto Sans KR';color:#ef4444}
+.cam .rec::before{content:'●';margin-right:4px;animation:blink 1s infinite}
+.cam .item{width:min(58%,250px)}
+.cam .scan{position:absolute;left:0;right:0;height:4px;background:linear-gradient(90deg,transparent,#22d3ee,transparent);box-shadow:0 0 18px #22d3ee;top:0;opacity:0}
+.cam.scanning .scan{opacity:1;animation:scan 1.1s linear infinite}
+@keyframes scan{0%{top:0}100%{top:100%}}
+.cam .hint{position:absolute;bottom:12px;color:#64748b;font:500 14px 'Noto Sans KR'}
+.res{background:#0f172a;border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:12px;color:#e2e8f0}
+.res-label{font:900 15px 'Noto Sans KR';color:#94a3b8}
+.res-big{font:900 clamp(34px,3.6vw,52px) 'Noto Sans KR';min-height:62px}
+.bar-row{display:grid;grid-template-columns:86px 1fr 52px;gap:10px;align-items:center;font:700 15px 'Noto Sans KR'}
+.bar{height:28px;background:#1e293b;border-radius:8px;overflow:hidden}
+.bar div{height:100%;width:0;border-radius:8px;transition:width .35s}
+.items{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.ibtn{background:#fdf8ee;border:none;border-radius:12px;padding:10px 16px;font:700 16px 'Noto Sans KR';color:#3b2a1d;box-shadow:0 4px 0 #c8b9a0}
+.ibtn.warn{background:#ffe1e7;box-shadow:0 4px 0 #e59aab}
+.verdict{font:900 18px 'Noto Sans KR';padding:10px 14px;border-radius:10px;display:none}
+.verdict.ok{display:block;background:#064e3b;color:#a7f3d0}
+.verdict.bad{display:block;background:#7f1d1d;color:#fecaca;animation:shake .5s}
+@keyframes shake{0%,100%{transform:none}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+.flash-bad{animation:flashRed 1s}
+@keyframes flashRed{0%,60%{box-shadow:inset 0 0 0 9999px rgba(239,68,68,.25)}100%{box-shadow:inset 0 0 60px rgba(0,0,0,.55)}}
+
+/* 왜 틀렸을까 */
+.q-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px}
+.q-big{font-size:clamp(40px,5.2vw,74px);line-height:1.2;margin:0}
+.data-wrap{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;width:100%}
+.dcol{background:rgba(0,0,0,.18);border:2px dashed rgba(255,255,255,.35);border-radius:14px;padding:12px;text-align:left}
+.dcol h4{margin:0 0 8px;font-size:28px}
+.thumbs{display:flex;flex-wrap:wrap;gap:4px}
+.thumbs span{width:30px;height:30px;background:#fff;border-radius:5px;display:flex;align-items:center;justify-content:center;animation:pop .3s both}
+.thumbs svg{width:24px;height:24px}
+@keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+.clue{font-size:26px;margin-top:6px;animation:fadeIn .5s}
+.insight{font-size:clamp(28px,3vw,40px);border:3px solid #fff3a6;border-radius:14px;padding:10px 22px;animation:fadeIn .6s}
+
+/* 본시 목표 */
+.goal{font-size:clamp(28px,2.9vw,40px);display:flex;gap:14px;align-items:flex-start;animation:fadeIn .6s both;margin-bottom:12px}
+.goal .num{flex-shrink:0;width:48px;height:48px;border:3px solid currentColor;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px}
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:14px}
+.flow .st{font-size:24px;border:2px solid rgba(255,255,255,.6);border-radius:12px;padding:4px 14px}
+.flow .ar{font-size:24px;opacity:.7}
+
+/* 칠판 글 */
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.count{font-size:26px;white-space:nowrap}.count b{color:#fff3a6;font-size:38px}
+.notes{flex:1;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px 22px;align-content:start;padding-right:190px}
+.note{padding:4px 6px;animation:write .9s ease-out both;position:relative}
+.note .t{font-size:clamp(25px,2.2vw,32px);font-weight:700;line-height:1.2;word-break:keep-all}
+.note .n{font-size:20px;opacity:.85;margin-top:2px}
+.note .cl{font-size:19px;opacity:.9;margin-top:2px}
+.note.new::after{content:'NEW';position:absolute;top:-6px;right:0;font-size:15px;font-weight:700;color:#ffb3c7;border:2px solid #ffb3c7;border-radius:6px;padding:0 5px;transform:rotate(8deg)}
+@keyframes write{0%{opacity:0;clip-path:inset(0 100% 0 0)}100%{opacity:1;clip-path:inset(0 0 0 0)}}
+.del{position:absolute;top:0;right:-6px;background:none;border:none;color:rgba(255,255,255,.5);font-size:22px;display:none}
+.eraser .note:hover .del{display:block}
+.empty{grid-column:1/-1;text-align:center;font-size:32px;opacity:.6;margin-top:5vh}
+.join{background:#fdf8ee;border-radius:12px;padding:12px;color:#2f5a43;font:700 14px/1.5 'Noto Sans KR';box-shadow:0 6px 18px rgba(0,0,0,.35)}
+.join .u{display:block;font:900 13px 'Noto Sans KR';color:#7c4a1e;word-break:break-all;margin:6px 0;background:#fff3a6;border-radius:8px;padding:4px 6px}
+.join ol{margin:4px 0 0;padding-left:18px;font-weight:500}
+#roleSel{position:relative;z-index:3;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;text-align:center}
+.roles{display:flex;gap:22px;flex-wrap:wrap;justify-content:center}
+.role{background:#fdf8ee;border:none;border-radius:18px;padding:26px 34px;min-width:260px;box-shadow:0 6px 0 #c8b9a0;font:900 24px 'Noto Sans KR';color:#2f5a43}
+.role small{display:block;font:500 14px 'Noto Sans KR';color:#6b6257;margin-top:6px}
+.role:hover{transform:translateY(-2px)}
+.sendbar{display:flex;align-items:center;gap:10px;justify-content:space-between;background:#eef6f0;border:1.5px solid #b9d8c3;border-radius:12px;padding:10px 12px;margin-top:14px;flex-wrap:wrap}
+.sendbar span{font-size:14px;font-weight:700;color:#2f5a43}
+.sendbar.dirty{background:#fff7d6;border-color:#f1d98a}.sendbar.dirty span{color:#92400e}
+.send{background:#2f5a43;color:#fff;border:none;border-radius:10px;padding:11px 22px;font-weight:900;font-size:16px;box-shadow:0 3px 0 #1d3a2b}
+.send:active{transform:translateY(2px);box-shadow:0 1px 0 #1d3a2b}
+.qr-box{position:absolute;right:0;bottom:0;background:#fff;border-radius:12px;padding:10px;text-align:center;z-index:2;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+.qr-box .lbl{font:700 13px 'Noto Sans KR';color:#2f5a43;margin-top:6px}
+.qrSlot img,.qrSlot canvas{display:block;width:118px;height:118px}
+
+/* 실시간 현황 */
+.big-num{font-size:64px;line-height:1}
+.status-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;align-content:start;overflow:auto}
+.sbox{border-radius:12px;padding:8px 12px;font:700 15px 'Noto Sans KR';display:flex;justify-content:space-between;align-items:center;gap:6px}
+.sbox.run{background:#c8f5c0;color:#14532d}
+.sbox.fix{background:#fff3a6;color:#713f12}
+.sbox.wait{background:rgba(255,255,255,.12);color:#e2e8f0}
+.lb{display:flex;flex-direction:column;gap:7px;overflow:auto}
+.lb-row{display:grid;grid-template-columns:30px 110px 1fr 64px;gap:10px;align-items:center;font-size:24px}
+.lb-bar{height:22px;background:rgba(255,255,255,.12);border-radius:7px;overflow:hidden}
+.lb-bar div{height:100%;border-radius:7px;transition:width .6s}
+.tally{display:flex;flex-direction:column;gap:6px;font-size:23px}
+.tally .tr{display:grid;grid-template-columns:150px 1fr 34px;gap:8px;align-items:center}
+.chg{display:grid;grid-template-columns:110px 60px 1fr 60px 70px;gap:8px;align-items:center;font-size:24px}
+.chg .ln2{height:4px;background:rgba(255,255,255,.4);border-radius:3px;position:relative}
+.chg .ln2::after{content:'▶';position:absolute;right:-8px;top:-14px;font-size:16px;color:rgba(255,255,255,.6)}
+.ans{font-size:24px;line-height:1.3;margin-bottom:8px;animation:fadeIn .5s}
+.ans small{font-size:17px;opacity:.75}
+.bias{display:flex;flex-direction:column;gap:10px}
+.bitem{display:flex;flex-direction:column;font-size:clamp(21px,1.9vw,27px);line-height:1.35;animation:fadeIn .6s both}
+.bitem b{font-size:clamp(23px,2vw,29px)}
+.real{margin-top:14px;font-size:clamp(19px,1.6vw,23px);line-height:1.4;border-top:2px dashed rgba(255,255,255,.3);padding-top:10px;opacity:.95;animation:fadeIn .6s both}
+.fixes li{animation:fadeIn .6s both;margin-bottom:6px}
+.adm{flex:1;background:#fdf8ee;border-radius:12px;padding:14px;color:#2b2b2b;display:flex;flex-direction:column;gap:10px;min-height:0}
+.adm-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.danger{background:#dc2626;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-weight:900;font-size:14px}
+.danger.arm{background:#7f1d1d;animation:shake .4s}
+.adm-tbl{flex:1;overflow:auto;border:1px solid #e7dece;border-radius:10px;background:#fff}
+.adm-tbl table{width:100%;border-collapse:collapse;font-size:14px}
+.adm-tbl th{position:sticky;top:0;background:#2f5a43;color:#fff;padding:8px;text-align:left;font-weight:700}
+.adm-tbl td{padding:8px;border-top:1px solid #f0e9dc;vertical-align:top}
+.adm-tbl .del1{background:#fff;border:1.5px solid #dc2626;color:#dc2626;border-radius:8px;padding:5px 10px;font-weight:900;font-size:13px}
+.adm-tbl .del1.arm{background:#dc2626;color:#fff}
+.adm-note{font-size:13px;color:#6b6257}
+.ex-pick{font-family:'Noto Sans KR';font-size:15px;font-weight:700;color:#fdf8ee;display:flex;align-items:center;gap:8px}
+.ex-pick select{font:700 15px 'Noto Sans KR';border-radius:10px;border:none;padding:8px 10px;background:#fdf8ee;color:#2f5a43;max-width:260px}
+.cstep{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;background:transparent;border:2px solid transparent;border-radius:12px;padding:6px 10px;color:inherit;font:inherit;font-size:clamp(21px,1.9vw,27px);line-height:1.3}
+.cstep .n{flex-shrink:0;width:34px;height:34px;border:2px solid currentColor;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px}
+.cstep.on{border-color:#fff3a6;background:rgba(255,243,166,.12);color:#fff3a6}
+.cdetail{margin-top:6px;border-top:2px dashed rgba(255,255,255,.3);padding-top:10px;font-size:clamp(19px,1.6vw,24px);line-height:1.45;animation:fadeIn .4s}
+.cdetail code{font-family:ui-monospace,Consolas,monospace;font-size:.78em;background:rgba(0,0,0,.3);padding:1px 6px;border-radius:6px;color:#fde68a;text-shadow:none}
+.tree{font-family:ui-monospace,Consolas,monospace;font-size:.8em;line-height:1.6;background:rgba(0,0,0,.25);border-radius:10px;padding:8px 12px;margin-top:6px;text-shadow:none;color:#e2e8f0;white-space:pre}
+.ccode .row{display:block;border-left:4px solid transparent;padding-left:6px;border-radius:3px;transition:background .3s}
+.ccode .row.hot{background:rgba(253,230,138,.16);border-left-color:#fde68a}
+.ccode .row.dim{opacity:.45}
+.ccode .mark{float:right;font:900 12px 'Noto Sans KR';color:#0f172a;background:#fde68a;border-radius:999px;padding:1px 8px;margin-right:4px}
+.gal-grid{flex:1;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;align-content:start;overflow:auto}
+.gcard{border:2px dashed rgba(255,255,255,.35);border-radius:14px;padding:12px 14px;background:rgba(0,0,0,.14);position:relative;animation:fadeIn .5s}
+.gcard .gt{font-size:clamp(24px,2vw,30px);font-weight:700;line-height:1.2;padding-right:40px}
+.gcard .gm{font-size:19px;opacity:.85}
+.gcard .gh{font-size:19px;margin-top:4px}
+.gcard .gc{font-size:18px;margin-top:6px;border-top:1px dashed rgba(255,255,255,.25);padding-top:6px}
+.gcard .rank{position:absolute;top:6px;right:10px;font-size:30px}
+.gcard a{color:#b8e4ff}
+.glike{font-size:24px}
+.sg{background:#fff;border:1px solid #e7dece;border-radius:12px;padding:12px;margin-bottom:10px}
+.sg.me{border:2px solid #2f5a43}
+.sg .top{display:flex;gap:8px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.sg h4{margin:0;font-size:16px}
+.sg .meta{font-size:13px;color:#6b6257}
+.sg .go{display:inline-block;background:#2563eb;color:#fff;text-decoration:none;border-radius:10px;padding:8px 14px;font-weight:900;font-size:14px}
+.likeb{border:1.5px solid #f43f5e;background:#fff;color:#e11d48;border-radius:999px;padding:6px 12px;font-weight:900;font-size:14px}
+.likeb.on{background:#f43f5e;color:#fff}
+.likeb:disabled{opacity:.5;cursor:default}
+.cms{margin-top:8px;display:flex;flex-direction:column;gap:4px;max-height:150px;overflow:auto}
+.cms div{background:#f7f3ea;border-radius:8px;padding:5px 9px;font-size:13.5px}
+.cms b{color:#2f5a43}
+.cmrow{display:flex;gap:6px;margin-top:6px}
+.cmrow input{flex:1;border:1.5px solid #d9cfbf;border-radius:10px;padding:8px 10px;font-size:14px}
+.xs{background:none;border:none;color:#b91c1c;font-weight:900;cursor:pointer}
+.reflect{font-size:22px;padding:6px 10px;border-left:3px solid #fff3a6;margin-bottom:8px}
+
+/* ===== 받침대 ===== */
+.tray{margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  background:linear-gradient(#8a5a30,#6b4320);border-radius:8px;padding:9px 12px;box-shadow:inset 0 2px 3px rgba(255,255,255,.2),0 4px 10px rgba(0,0,0,.35)}
+.dots{display:flex;gap:5px;flex-wrap:wrap}
+.dot{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fdf8ee;border-radius:9px;padding:6px 10px;font-size:13px;font-weight:700}
+.dot.on{background:#fff3a6;color:#3b2a1d;border-color:#fff3a6}
+.tool{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:10px;padding:7px 12px;font-size:14px}
+.mode{position:absolute;bottom:6px;left:14px;font-size:12px;color:rgba(255,255,255,.4);z-index:1}
+
+/* ===== 학생 디지털 학습지 ===== */
+#stu{position:relative;z-index:1;flex:1;display:flex;flex-direction:column}
+.sheet{background:#fdf8ee;border-radius:10px;padding:20px;color:#2b2b2b;box-shadow:0 8px 24px rgba(0,0,0,.35);max-width:900px;width:100%;margin:0 auto}
+.sheet h2{margin:0 0 4px;font-size:22px;font-weight:900}
+.sheet .desc{color:#6b6257;font-size:14px;margin:0 0 14px}
+.stabs{display:flex;gap:6px;flex-wrap:wrap;max-width:900px;width:100%;margin:0 auto 12px}
+.stab{flex:1;min-width:110px;border:none;border-radius:10px;padding:10px 6px;font-weight:900;font-size:14px;background:rgba(255,255,255,.14);color:#fdf8ee}
+.stab.on{background:#fff3a6;color:#3b2a1d}
+.stab.done::after{content:' ✓';color:#16a34a}
+.fld{margin-bottom:14px}
+.fld label{display:block;font-size:14px;font-weight:900;margin-bottom:6px}
+.fld input[type=text],.fld input[type=number],.fld textarea{width:100%;border:1.5px solid #d9cfbf;border-radius:10px;padding:10px 12px;font-size:15px;background:#fff;outline:none}
+.fld input:focus,.fld textarea:focus{border-color:#2f5a43;box-shadow:0 0 0 3px rgba(47,90,67,.15)}
+.ctag{display:inline-block;font-size:11.5px;font-weight:900;background:#2f5a43;color:#fff3a6;padding:2px 8px;border-radius:999px;margin-left:6px;vertical-align:middle}
+.opts{display:flex;gap:8px;flex-wrap:wrap}
+.opt{border:1.5px solid #d9cfbf;background:#fff;border-radius:10px;padding:9px 14px;font-size:14.5px;font-weight:700;color:#3b3530}
+.opt.sel{background:#2f5a43;border-color:#2f5a43;color:#fff}
+.opt small{display:block;font-weight:400;font-size:12px;opacity:.8}
+.cls-row{display:flex;gap:8px;margin-bottom:6px;align-items:center}
+.cls-row .no{width:28px;height:28px;border-radius:50%;background:#2f5a43;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;flex-shrink:0}
+.cls-row input{flex:1;border:1.5px solid #d9cfbf;border-radius:10px;padding:9px 11px;font-size:15px}
+.xb{border:1.5px solid #d9cfbf;background:#fff;border-radius:10px;width:38px;height:38px;color:#dc2626;font-weight:900}
+.mini{border:1.5px solid #2f5a43;background:#fff;color:#2f5a43;border-radius:10px;padding:7px 12px;font-weight:900;font-size:13.5px}
+.mini.fill{background:#2f5a43;color:#fff}
+.rng{display:flex;gap:10px;align-items:center}.rng input{flex:1;accent-color:#2f5a43}.rng b{min-width:70px;text-align:right;color:#2f5a43}
+.split{display:flex;height:26px;border-radius:8px;overflow:hidden;font-size:12.5px;font-weight:700;color:#fff;margin-top:6px}
+.split div{display:flex;align-items:center;justify-content:center}
+.pbox{background:#0f172a;color:#e2e8f0;border-radius:12px;padding:14px;font:13px/1.7 ui-monospace,Consolas,monospace;white-space:pre-wrap;max-height:340px;overflow:auto}
+.pbox .h{color:#a5b4fc;font-weight:700}.pbox .v{color:#fde68a}
+.hintbox{background:#fff7d6;border:1px solid #f1d98a;border-radius:10px;padding:9px 12px;font-size:13.5px;margin:8px 0}
+.okbox{background:#dcfce7;border:1px solid #86efac;border-radius:10px;padding:9px 12px;font-size:13.5px;margin:8px 0}
+.log{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.log div{background:#fff;border:1px solid #e7dece;border-radius:10px;padding:8px 10px;font-size:13.5px}
+.acc-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.summary div{background:#fff;border:1px solid #e7dece;border-radius:12px;padding:10px;text-align:center}
+.summary b{display:block;font-size:26px;color:#2f5a43}
+.navrow{display:flex;justify-content:space-between;margin-top:16px;gap:8px}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;padding:11px 18px;border-radius:12px;font-size:14px;opacity:0;transition:.25s;z-index:99;pointer-events:none}
+.toast.show{opacity:1}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:60;padding:16px}
+.modal{background:#fff;border-radius:14px;padding:16px;max-width:640px;width:100%}
+body.student .board{padding:14px 12px 20px}
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="board" id="board">
+
+    <!-- 시작: 역할 선택 -->
+    <div id="roleSel" class="hidden">
+      <div class="chalk"><div style="font-size:24px;opacity:.85">인공지능 기초 · 지도학습과 분류 (5/8차시)</div>
+        <h1 class="s-title" style="font-size:clamp(38px,4.6vw,64px)">데이터로 <span class="y">나만의 분류 AI</span> 만들기</h1></div>
+      <div class="roles">
+        <button class="role" data-role="teacher">🧑‍🏫 선생님 화면<small>전자칠판에 띄워 수업을 진행해요</small></button>
+        <button class="role" data-role="student">🧑‍🎓 학생으로 참여<small>내 컴퓨터에서 쓰고 📤 보내기</small></button>
+      </div>
+    </div>
+
+    <!-- 교사 비밀번호 -->
+    <div id="pinBox" class="hidden" style="position:relative;z-index:3;flex:1;display:flex;align-items:center;justify-content:center">
+      <div class="sheet" style="max-width:380px;text-align:center">
+        <h2>🔒 선생님 화면</h2><p class="desc">비밀번호를 입력해 주세요.</p>
+        <div class="fld"><input type="password" id="pinIn" inputmode="numeric" style="width:100%;border:1.5px solid #d9cfbf;border-radius:10px;padding:12px;font-size:18px;text-align:center"></div>
+        <button class="send" id="pinBtn" style="width:100%">들어가기</button>
+        <div id="pinMsg" style="color:#b91c1c;font-size:14px;margin-top:8px;min-height:18px"></div>
+        <a href="#student" style="font-size:13px;color:#6b6257">학생이라면 여기를 눌러 참여하세요</a>
+      </div>
+    </div>
+
+    <!-- ① 도입: 바이브 코딩 시연 -->
+    <section class="scene" data-scene="1">
+      <div class="tagrow"><span class="stage-tag">도입 ① 교사 바이브 코딩 시연</span><span class="dl-tag">인공지능 개념 이해</span><span class="dl-tag">인공지능 문제해결력</span></div>
+      <h2 class="s-title chalk">말 한마디로 <span class="y">AI 앱</span>을 만들 수 있을까?</h2>
+      <div class="s-line"></div>
+      <div class="vibe">
+        <div class="win">
+          <div class="win-bar"><i style="background:#ef4444"></i><i style="background:#f59e0b"></i><i style="background:#10b981"></i>&nbsp; 생성형 AI</div>
+          <div class="chat" id="chat"></div>
+          <div class="stats"><button class="cta" id="startVibe">▶ 시연 시작</button></div>
+        </div>
+        <div class="win">
+          <div class="win-bar"><span>📒 can_bottle_classifier.ipynb · Google Colab</span><span class="sp"></span><span id="genState">대기 중</span></div>
+          <pre class="code" id="code"></pre>
+          <div class="stats">
+            <span class="pill">⏱ 생성 시간 <b id="tm">00:00</b></span>
+            <span class="pill">📏 코드 <b id="lines">0</b>줄</span>
+            <span class="sp"></span>
+            <button class="cta hidden" id="runApp">▶ 웹 앱 실행하기</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ② 도입: 웹 앱 시연과 오분류 -->
+    <section class="scene hidden" data-scene="2">
+      <div class="tagrow"><span class="stage-tag">도입 ② 웹 앱 시연 · 오분류</span><span class="dl-tag">인공지능 개념 이해</span></div>
+      <h2 class="s-title chalk">캔 vs 페트병, AI는 <span class="g">잘 맞힐까?</span></h2>
+      <div class="s-line"></div>
+      <div class="app">
+        <div>
+          <div class="cam" id="cam"><span class="rec">Gradio 웹 앱 · WEBCAM</span><div class="scan"></div><div class="item" id="camItem"></div><span class="hint" id="camHint">아래 물건을 웹캠에 대 보세요</span></div>
+          <div class="items">
+            <button class="ibtn" data-item="can">🥫 캔</button>
+            <button class="ibtn" data-item="bottle">🧴 페트병</button>
+            <button class="ibtn warn" data-item="crushed">🥫 찌그러진 캔</button>
+          </div>
+        </div>
+        <div class="res">
+          <div class="res-label">AI의 판단</div>
+          <div class="res-big" id="resBig">—</div>
+          <div id="bars"></div>
+          <div class="verdict" id="verdict"></div>
+          <div class="sp"></div>
+          <button class="cta hidden" id="toWhy" style="align-self:flex-end">🤔 왜 틀렸을까? →</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ③ 도입: 문제 제기 -->
+    <section class="scene hidden" data-scene="3">
+      <div class="tagrow"><span class="stage-tag">도입 ③ 문제 제기</span><span class="dl-tag">인공지능 문제해결력</span></div>
+      <div id="qWrap" style="flex:1;display:flex;flex-direction:column;min-height:0">
+        <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+          <p class="q-big chalk" style="font-size:clamp(34px,4vw,58px)">왜 <span class="p">틀렸을까?</span> <span class="y">무엇을 바꿔야</span> 할까?</p>
+          <span class="sp"></span>
+          <div class="chalk" style="font-size:34px" id="timer">💻 학생 컴퓨터에서 답을 쓰고 📤 보내기!</div>
+        </div>
+        <div class="s-line"></div>
+        <div style="flex:1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 180px;gap:16px;min-height:0">
+          <div class="cbox chalk" style="overflow:auto"><h3 class="p">🤔 왜 틀렸을까? <span style="font-size:22px;opacity:.8" id="q1n">0</span></h3><div id="ans1"></div></div>
+          <div class="cbox chalk" style="overflow:auto"><h3 class="y">🔧 무엇을 바꿔야 할까? <span style="font-size:22px;opacity:.8" id="q2n">0</span></h3><div id="ans2"></div></div>
+          <div style="display:flex;flex-direction:column;gap:10px;align-items:stretch">
+            <div class="join"><div>💻 학생 컴퓨터에서</div><span class="u joinUrl"></span><ol><li>주소로 접속</li><li><b>학생으로 참여</b></li><li>쓰고 <b>📤 보내기</b></li></ol></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;margin-top:12px">
+          <button class="cta ghost" id="startTimer">⏱ 60초 타이머</button>
+          <button class="cta" id="showData">🔍 AI가 학습한 데이터 들여다보기</button>
+        </div>
+      </div>
+      <div id="dataView" class="hidden" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:10px">
+        <h2 class="s-title chalk" style="font-size:clamp(28px,3vw,40px)">AI가 공부한 <span class="y">훈련 데이터</span>를 보면…</h2>
+        <div class="data-wrap" id="dataWrap"></div>
+        <div id="clues" class="chalk" style="text-align:center"></div>
+        <button class="cta hidden" id="showInsight">💡 그렇다면?</button>
+        <div class="insight chalk hidden" id="insight">AI 모델의 정확도는 데이터의 <span class="y">양</span>과 <span class="p">질</span>이 결정한다!</div>
+        <button class="cta hidden" id="toBias">⚖️ 데이터 편향이란? →</button>
+      </div>
+    </section>
+
+    <!-- ④ 도입: 데이터 편향과 해결·완화 -->
+    <section class="scene hidden" data-scene="4">
+      <div class="tagrow"><span class="stage-tag">도입 ④ 데이터 편향</span><span class="dl-tag">데이터 문해력</span><span class="dl-tag">디지털 윤리와 안전</span></div>
+      <h2 class="s-title chalk"><span class="p">데이터 편향</span>: 데이터가 한쪽으로 치우치면 AI의 판단도 치우친다</h2>
+      <div class="s-line"></div>
+      <div class="cols" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+        <div class="cbox chalk" style="overflow:auto">
+          <h3 class="p">⚖️ 우리 분리수거 AI의 편향</h3>
+          <div class="bias">
+            <div class="bitem" style="animation-delay:.1s"><b class="y">① 양의 편향 (클래스 불균형)</b><span>캔 12장 vs 페트병 40장 → 애매하면 많이 본 <span class="b">'페트병'</span>으로 판단</span></div>
+            <div class="bitem" style="animation-delay:.5s"><b class="y">② 다양성 편향 (대표성 부족)</b><span>똑바로 선 캔만 학습 → <span class="b">찌그러진 캔</span>은 처음 보는 모양</span></div>
+            <div class="bitem" style="animation-delay:.9s"><b class="y">③ 환경 편향</b><span>흰 책상 배경에서만 촬영 → <span class="b">다른 배경·조명</span>에서 실수</span></div>
+          </div>
+          <div class="real" style="animation-delay:1.3s">🌏 실제 사회에서도: 특정 피부색·성별에서 얼굴 인식 오류가 더 높게 나타나거나, 과거 데이터를 배운 채용 AI가 한쪽 성별에 불리하게 판단한 사례가 있어요.</div>
+        </div>
+        <div class="cbox chalk" style="overflow:auto">
+          <h3 class="g">🛠️ 편향의 해결·완화 방법</h3>
+          <ul class="step-list fixes">
+            <li style="animation-delay:.3s"><span class="n">1</span><span><span class="y">균형 맞추기</span> — 클래스별 데이터 수를 비슷하게, 부족한 쪽을 더 모으기</span></li>
+            <li style="animation-delay:.7s"><span class="n">2</span><span><span class="y">다양하게 모으기</span> — 모양·각도·배경·조명·사람을 바꿔 가며 촬영</span></li>
+            <li style="animation-delay:1.1s"><span class="n">3</span><span><span class="y">데이터 증강</span> — 회전·뒤집기·밝기 조절로 데이터 늘리기</span></li>
+            <li style="animation-delay:1.5s"><span class="n">4</span><span><span class="y">테스트로 점검</span> — 학습에 안 쓴 데이터로 조건별 정확도와 오분류 확인</span></li>
+            <li style="animation-delay:1.9s"><span class="n">5</span><span><span class="y">사람이 검토</span> — 레이블이 맞는지, 빠진 경우가 없는지 여러 사람이 확인</span></li>
+          </ul>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="cta" id="toGoal">🎯 오늘의 목표 확인 →</button></div>
+    </section>
+
+    <!-- ⑤ 본시 목표 -->
+    <section class="scene hidden" data-scene="5">
+      <div class="tagrow"><span class="stage-tag">본시 목표 확인</span></div>
+      <h2 class="s-title chalk">바이브 코딩으로 <span class="y">나만의 분류 AI 웹 앱</span>을 만들고, 성능을 평가해 개선하기</h2>
+      <div class="s-line"></div>
+      <div class="goal chalk" style="animation-delay:.1s"><span class="num">1</span><span>분류 문제에 맞는 <span class="y">기계학습 유형과 알고리즘</span>을 고르고, 그 이유를 설명할 수 있다.</span></div>
+      <div class="goal chalk b" style="animation-delay:.5s"><span class="num">2</span><span><span class="y">훈련 데이터</span>로 분류 모델을 학습시키고, <span class="y">테스트 데이터</span>로 정확도를 평가할 수 있다.</span></div>
+      <div class="flow chalk">
+        <span class="st">활동 1 분류 문제 정의·프롬프트 설계</span><span class="ar">→</span>
+        <span class="st">활동 2 바이브 코딩·디버깅</span><span class="ar">→</span>
+        <span class="st">활동 3 성능 평가·개선</span><span class="ar">→</span>
+        <span class="st">정리 디지털 학습지 제출</span>
+      </div>
+      <div style="margin-top:auto;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;padding-top:14px;flex-wrap:wrap">
+        <div class="chalk" style="font-size:24px">📱 디지털 학습지에서 <span class="y">① 주제·프롬프트</span> 탭을 열어 주세요!</div>
+        <button class="cta big" id="toAct1">활동 1 시작 →</button>
+      </div>
+    </section>
+
+    <!-- ⑤ 활동 1: 분류 주제 칠판 -->
+    <section class="scene hidden" data-scene="6">
+      <div class="tagrow"><span class="stage-tag">활동 1 분류 문제 정의와 프롬프트 설계</span><span class="dl-tag">데이터 문해력</span><span class="dl-tag">인공지능 개념 이해</span></div>
+      <div class="head chalk">
+        <h2 class="s-title">내가 만들 <span class="y">분류 AI</span>는?</h2>
+        <div class="count">참여 <b class="cntAll">0</b>명 · <span class="g">지도학습</span> 선택 <b id="cntSup">0</b>명</div>
+      </div>
+      <div class="s-line"></div>
+      <div style="position:relative;flex:1;display:flex">
+        <div class="notes" id="notes"></div>
+        <div style="position:absolute;right:0;bottom:0;width:170px;z-index:2"><div class="join"><div>💻 학생 컴퓨터에서</div><span class="u joinUrl"></span><ol><li>주소로 접속</li><li><b>학생으로 참여</b></li><li>쓰고 <b>📤 보내기</b></li></ol></div></div>
+      </div>
+    </section>
+
+    <!-- ⑦ 교사 설명: 내 주제에 맞게 코랩 코드 고치기 (학생 화면에는 없음) -->
+    <section class="scene hidden" data-scene="7">
+      <div class="tagrow"><span class="stage-tag">활동 2 준비 · 내 주제에 맞게 코랩 코드 고치기</span><span class="dl-tag">인공지능 문제해결력</span><span class="dl-tag">데이터 문해력</span></div>
+      <div class="head chalk">
+        <h2 class="s-title">코드에서 <span class="y">딱 3곳</span>만 바꾸면 나만의 분류 AI!</h2>
+        <label class="ex-pick">👩‍🎓 예시 학생 <select id="cStu"></select></label>
+      </div>
+      <div class="s-line"></div>
+      <div class="cols" style="grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr)">
+        <div class="cbox chalk" style="overflow:auto;display:flex;flex-direction:column;gap:6px">
+          <div id="cSteps"></div>
+          <div id="cDetail" class="cdetail"></div>
+        </div>
+        <div class="win" style="min-height:0">
+          <div class="win-bar"><span>📒 my_classifier.ipynb · 바꿀 곳이 있는 핵심 부분</span><span class="sp"></span><span id="cWho"></span></div>
+          <pre class="code ccode" id="cCode"></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ⑧ 활동 2: 바이브 코딩과 디버깅 -->
+    <section class="scene hidden" data-scene="8">
+      <div class="tagrow"><span class="stage-tag">활동 2 바이브 코딩으로 분류 웹 앱 만들기</span><span class="dl-tag">인공지능 문제해결력</span></div>
+      <h2 class="s-title chalk">오류는 실패가 아니라 <span class="y">대화의 시작</span>!</h2>
+      <div class="s-line"></div>
+      <div class="cols">
+        <div class="cbox chalk">
+          <h3 class="y">🔧 디버깅 4단계</h3>
+          <ul class="step-list">
+            <li><span class="n">1</span><span>AI가 만든 코드를 <span class="b">코랩 셀</span>에 붙여 넣고 ▶ 실행한다</span></li>
+            <li><span class="n">2</span><span>오류가 나면 빨간 <span class="p">오류 메시지 마지막 줄</span>을 복사한다</span></li>
+            <li><span class="n">3</span><span>AI에게 "<span class="y">이 오류를 고쳐 줘</span>" + 오류 메시지</span></li>
+            <li><span class="n">4</span><span>다시 실행! 고친 과정은 학습지에 기록</span></li>
+          </ul>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;min-height:0">
+          <div class="chalk" style="display:flex;gap:26px;align-items:flex-end;flex-wrap:wrap">
+            <div><div style="font-size:22px">✅ 앱 실행 성공</div><div class="big-num g"><span id="runN">0</span><span style="font-size:32px"> / <span class="cntAll">0</span></span></div></div>
+            <div><div style="font-size:22px">🔧 해결한 오류</div><div class="big-num y" id="bugN">0</div></div>
+          </div>
+          <div class="status-grid" id="runGrid"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ⑦ 활동 3: 성능 평가 -->
+    <section class="scene hidden" data-scene="9">
+      <div class="tagrow"><span class="stage-tag">활동 3 AI 분류 성능 평가</span><span class="dl-tag">데이터 문해력</span><span class="dl-tag">디지털 의사소통과 문제해결</span></div>
+      <h2 class="s-title chalk">테스트 데이터로 <span class="y">정확도</span>를 재 보자!</h2>
+      <div class="s-line"></div>
+      <div class="cols">
+        <div style="display:flex;flex-direction:column;gap:12px;min-height:0">
+          <div class="win" style="min-height:0">
+            <div class="win-bar">➕ 추가 프롬프트</div>
+            <pre class="code" style="font-size:14px" id="addPrompt"></pre>
+          </div>
+          <div class="cbox chalk"><h3 class="p">🧐 오분류 원인 (우리 반)</h3><div class="tally" id="tally"></div></div>
+        </div>
+        <div class="cbox chalk" style="display:flex;flex-direction:column;min-height:0">
+          <h3 class="y">📊 정확도 현황 <span style="font-size:20px;opacity:.8">(개선 후 기준)</span></h3>
+          <div class="lb" id="lb"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ⑩ 모델 갤러리 -->
+    <section class="scene hidden" data-scene="10">
+      <div class="tagrow"><span class="stage-tag">활동 3 마무리 · 모델 갤러리</span><span class="dl-tag">디지털 의사소통과 문제해결</span><span class="dl-tag">디지털 윤리와 안전</span></div>
+      <div class="head chalk">
+        <h2 class="s-title">친구의 <span class="y">분류 AI</span>를 체험해 보자!</h2>
+        <div class="count">모델 <b id="gN">0</b>개 · ❤️ <b id="gL">0</b> · 💬 <b id="gC">0</b></div>
+      </div>
+      <div class="s-line"></div>
+      <div class="gal-grid" id="tGal"></div>
+    </section>
+
+    <!-- ⑪ 정리 -->
+    <section class="scene hidden" data-scene="11">
+      <div class="tagrow"><span class="stage-tag">정리 디지털 학습지 제출</span><span class="dl-tag">디지털 의사소통과 문제해결</span><span class="dl-tag">디지털 윤리와 안전</span></div>
+      <div class="head chalk">
+        <h2 class="s-title">데이터를 바꾸니 <span class="y">성능</span>이 바뀌었다!</h2>
+        <div class="count">제출 <b id="doneN">0</b> / <b class="cntAll">0</b>명 · 평균 <b id="avgUp">+0</b>%p</div>
+      </div>
+      <div class="s-line"></div>
+      <div class="cols">
+        <div class="cbox chalk" style="overflow:auto"><h3 class="y">📈 개선 전 → 개선 후</h3><div id="chgList" style="display:flex;flex-direction:column;gap:6px"></div></div>
+        <div class="cbox chalk" style="overflow:auto"><h3 class="p">💬 성찰 한마디</h3><div id="reflects"></div></div>
+      </div>
+    </section>
+
+    <!-- ⑩ 교사: 기록 관리 -->
+    <section class="scene hidden" data-scene="12">
+      <div class="tagrow"><span class="stage-tag">교사용 · 기록 관리</span></div>
+      <div class="head chalk">
+        <h2 class="s-title">⚙️ 학생이 보낸 기록 관리</h2>
+        <div class="count">반 <span class="y" id="admRoom"></span> · <b id="admN">0</b>명</div>
+      </div>
+      <div class="s-line"></div>
+      <div class="adm">
+        <div class="adm-bar">
+          <button class="mini" id="admCopy">📋 전체 기록 복사 (엑셀에 붙여 넣기)</button>
+          <span class="sp"></span>
+          <button class="danger" id="admAll">🗑️ 전체 기록 지우기</button>
+        </div>
+        <div class="adm-tbl" id="admTbl"></div>
+        <div class="adm-note">※ 지운 기록은 되돌릴 수 없어요. 지우기 전에 <b>📋 전체 기록 복사</b>로 보관해 두세요. 전체를 지우면 학생 컴퓨터에 남은 작성 내용도 다음 접속·보내기 때 함께 초기화돼요.</div>
+      </div>
+    </section>
+
+    <!-- 학생 디지털 학습지 (#student) -->
+    <div id="stu" class="hidden">
+      <div id="login" class="sheet" style="max-width:460px;margin-top:6vh">
+        <h2>📒 디지털 학습지</h2>
+        <p class="desc">지도학습과 분류 — 데이터로 분류하는 인공지능 만들기 (5/8차시)</p>
+        <div class="fld"><label>이름</label><input type="text" id="inName" maxlength="10" placeholder="예: 김나옹"></div>
+        <button class="mini fill" style="width:100%;padding:12px;font-size:16px" id="loginBtn">시작하기 →</button>
+      </div>
+      <div id="work" class="hidden">
+        <div class="stabs" id="stabs"></div>
+        <div class="sheet" id="sheet"></div>
+      </div>
+    </div>
+
+    <div class="mode" id="mode"></div>
+  </div>
+
+  <div class="tray" id="tray">
+    <div class="dots" id="dots"></div>
+    <button class="tool" id="prev" title="이전 (←)">◀</button>
+    <button class="tool" id="next" title="다음 (→)">▶</button>
+    <span class="sp"></span>
+    <button class="tool hidden" id="eraseBtn" title="칠판 글 지우기">🧽</button>
+    <button class="tool" id="fsBtn">⛶ 크게</button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<div id="modalRoot"></div>
+
+<script>
+/* =========================================================
+   ★ 여기만 바꾸면 됩니다 ★
+   - SUPABASE_URL      : Supabase → Project Settings → Data API(또는 Connect)의 Project URL
+   - SUPABASE_ANON_KEY : Supabase → Project Settings → API Keys 의
+                         Publishable key(sb_publishable_…) 또는 legacy anon key(eyJ…)
+                         ※ secret / service_role 키는 절대 넣지 마세요!
+   - ROOM              : 반 이름 (반마다 기록이 따로 저장돼요)
+   - TEACHER_PIN       : 선생님 화면 비밀번호 (비워 두면 잠금 없음)
+   두 값(URL, KEY)을 비워 두면 데모 모드(같은 브라우저의 탭끼리만 공유)입니다.
+   교사: 주소#teacher (전자칠판) / 학생: 같은 주소로 접속 후 "학생으로 참여"
+   ========================================================= */
+const CONFIG = {
+  SUPABASE_URL: 'https://xwkjphwpioybdcynztvf.supabase.co',
+  SUPABASE_ANON_KEY: 'sb_publishable_O_Q9XsC_hRa2sD2hZ-8EgA_5okXuhG5',
+  TABLE: 'vibe_prompts',
+  ROOM: '공개수업',           // 예: '2-3반'
+  TEACHER_PIN: '',           // 예: '0613'
+  POLL_MS: 2500,
+  STUDENT_URL: ''            // 비워 두면 '현재 주소#student'
+};
+const REMOTE = !!(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
+const IS_STU = location.hash === '#student';
+const IS_TCH = location.hash === '#teacher';
+const $ = id => document.getElementById(id);
+const $$ = s => document.querySelectorAll(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+function ls(k,v){ try{ if(v===undefined) return JSON.parse(localStorage.getItem(k)); localStorage.setItem(k,JSON.stringify(v)); }catch(e){ return null; } }
+function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),1900); }
+
+/* ---------------- 저장소 ---------------- */
+const H = () => {
+  const k=CONFIG.SUPABASE_ANON_KEY.trim(), h={apikey:k,'Content-Type':'application/json'};
+  if(k.startsWith('eyJ')) h.Authorization='Bearer '+k;   // legacy anon 키(JWT)일 때만. 새 publishable 키는 apikey 헤더만 써야 해요.
+  return h;
+};
+const BASE = () => `${CONFIG.SUPABASE_URL.trim().replace(/\/+$/,'').replace(/\/rest\/v1$/,'')}/rest/v1/${CONFIG.TABLE}`;
+const LKEY = 'cls5_'+CONFIG.ROOM;
+const DB = {
+  async list(){ return (await this.raw()).filter(r=>!String(r.team).startsWith('__')); },
+  async resetAt(){ const m=(await this.raw()).find(r=>r.team==='__reset__'); return m&&m.data?m.data.resetAt:0; },
+  async delAll(){
+    if(REMOTE){ const r=await fetch(`${BASE()}?room=eq.${encodeURIComponent(CONFIG.ROOM)}`,{method:'DELETE',headers:H()}); if(!r.ok) throw new Error(r.status); }
+    else ls(LKEY,{});
+    await this.put('__reset__',{resetAt:Date.now()});
+  },
+  async raw(){
+    if(REMOTE){ const r=await fetch(`${BASE()}?room=eq.${encodeURIComponent(CONFIG.ROOM)}&select=team,data,updated_at&order=updated_at.asc`,{headers:H()}); if(!r.ok) throw new Error(r.status); return r.json(); }
+    return Object.values(ls(LKEY)||{}).sort((a,b)=>a.updated_at.localeCompare(b.updated_at));
+  },
+  async put(name,data){
+    const row={room:CONFIG.ROOM,team:name,data,updated_at:new Date().toISOString()};
+    if(REMOTE){ const r=await fetch(`${BASE()}?on_conflict=room,team`,{method:'POST',headers:{...H(),Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(row)}); if(!r.ok) throw new Error(r.status); return; }
+    const all=ls(LKEY)||{}; all[name]=row; ls(LKEY,all);
+  },
+  async del(name){
+    if(REMOTE){ const r=await fetch(`${BASE()}?room=eq.${encodeURIComponent(CONFIG.ROOM)}&team=eq.${encodeURIComponent(name)}`,{method:'DELETE',headers:H()}); if(!r.ok) throw new Error(r.status); return; }
+    const all=ls(LKEY)||{}; delete all[name]; ls(LKEY,all);
+  }
+};
+$('mode').textContent = REMOTE ? '● 실시간 연결됨' : '● 데모 모드 (이 브라우저에서만)';
+
+/* ---------------- 그림 ---------------- */
+const SVG = {
+  can:`<svg viewBox="0 0 120 160"><defs><linearGradient id="cg" x1="0" x2="1"><stop offset="0" stop-color="#9aa4ad"/><stop offset=".35" stop-color="#f1f5f9"/><stop offset=".6" stop-color="#b6c0c8"/><stop offset="1" stop-color="#7c8791"/></linearGradient></defs><rect x="22" y="22" width="76" height="120" rx="8" fill="url(#cg)"/><rect x="22" y="58" width="76" height="46" fill="#dc2626"/><text x="60" y="88" text-anchor="middle" font-size="16" font-weight="900" fill="#fff" font-family="sans-serif">COLA</text><ellipse cx="60" cy="22" rx="38" ry="8" fill="#cbd5e1" stroke="#94a3b8" stroke-width="2"/><ellipse cx="60" cy="142" rx="38" ry="7" fill="#94a3b8"/><rect x="52" y="17" width="16" height="6" rx="3" fill="#64748b"/></svg>`,
+  crushed:`<svg viewBox="0 0 120 160"><defs><linearGradient id="kg" x1="0" x2="1"><stop offset="0" stop-color="#8b949c"/><stop offset=".4" stop-color="#e2e8f0"/><stop offset=".7" stop-color="#a3adb6"/><stop offset="1" stop-color="#6b7680"/></linearGradient></defs><g transform="rotate(-18 60 80)"><path d="M26 40 L94 34 L100 58 L84 70 L100 84 L90 104 L98 124 L24 128 L32 104 L18 88 L34 72 L20 56 Z" fill="url(#kg)" stroke="#64748b" stroke-width="2"/><path d="M30 74 L92 70 L86 96 L36 98 Z" fill="#b91c1c" opacity=".85"/><path d="M34 72 L60 82 L84 70 M32 104 L58 92 L90 104" stroke="#475569" stroke-width="2" fill="none" opacity=".6"/><ellipse cx="60" cy="37" rx="34" ry="6" fill="#cbd5e1" stroke="#94a3b8" stroke-width="2"/></g></svg>`,
+  bottle:`<svg viewBox="0 0 120 160"><path d="M48 8 h24 v16 c0 8 22 16 22 36 v82 c0 6 -4 10 -10 10 h-48 c-6 0 -10 -4 -10 -10 v-82 c0 -20 22 -28 22 -36z" fill="#bfe3ff" fill-opacity=".75" stroke="#38bdf8" stroke-width="3"/><rect x="46" y="2" width="28" height="12" rx="3" fill="#2563eb"/><rect x="26" y="78" width="68" height="34" fill="#22c55e"/><text x="60" y="100" text-anchor="middle" font-size="14" font-weight="900" fill="#fff" font-family="sans-serif">WATER</text><path d="M40 60 v70" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".6"/></svg>`
+};
+
+/* =========================================================
+   교사 화면: 장면 전환
+   ========================================================= */
+const SCENES = ['도입① 시연','도입② 오분류','도입③ 문제 제기','도입④ 데이터 편향','본시 목표','활동 1','코드 고치기','활동 2','활동 3','모델 갤러리','정리','⚙️ 기록 관리'];
+let cur = 1;
+$('dots').innerHTML = SCENES.map((s,i)=>`<button class="dot" data-go="${i+1}">${s}</button>`).join('');
+function go(n){
+  n=Math.max(1,Math.min(SCENES.length,n)); cur=n;
+  $$('.scene').forEach(s=>s.classList.toggle('hidden', +s.dataset.scene!==n));
+  $$('.dot').forEach((d,i)=>d.classList.toggle('on', i+1===n));
+  $('eraseBtn').classList.toggle('hidden', n!==6);
+  if(n===3||n===6) makeQR();
+  if(n===3||n>=6){ lastKey=null; refresh(); }
+}
+$('dots').addEventListener('click',e=>{const d=e.target.closest('[data-go]'); if(d) go(+d.dataset.go);});
+$('prev').onclick=()=>go(cur-1); $('next').onclick=()=>go(cur+1);
+document.addEventListener('keydown',e=>{
+  if(IS_STU || ['INPUT','TEXTAREA'].includes(e.target.tagName)) return;
+  if(['ArrowRight','PageDown'].includes(e.key)) go(cur+1);
+  if(['ArrowLeft','PageUp'].includes(e.key)) go(cur-1);
+});
+$('fsBtn').onclick=()=>{ try{ const p=document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen(); p&&p.catch&&p.catch(()=>{}); }catch(e){} };
+
+/* ---------------- 도입 ①: 바이브 코딩 시연 ---------------- */
+const PROMPT = '코랩에서 웹캠으로 캔과 페트병을 분류하는 웹 앱 만들어 줘';
+const REPLY = '좋아요! MobileNetV2로 사진의 특징을 뽑고, scikit-learn의 KNN으로 학습한 뒤 Gradio로 웹 앱 화면을 만들어 볼게요. 🛠️';
+const CODE = `# 캔·페트병 분류 AI (Google Colab)
+!pip install -q gradio
+
+import glob, numpy as np
+from PIL import Image
+from tensorflow.keras.applications.mobilenet_v2 import MobileNetV2, preprocess_input
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score
+import gradio as gr
+
+CLASSES = ['캔', '페트병']
+net = MobileNetV2(weights='imagenet', include_top=False, pooling='avg')
+
+# 1. 사진 → 특징 벡터
+def feature(img):
+    img = img.convert('RGB').resize((224, 224))
+    x = preprocess_input(np.array(img, dtype='float32')[None])
+    return net.predict(x, verbose=0)[0]
+
+# 2. 데이터 불러오기 (폴더 이름 = 레이블)
+X, y = [], []
+for label, name in enumerate(CLASSES):
+    for path in glob.glob(f'data/{name}/*.jpg'):
+        X.append(feature(Image.open(path)))
+        y.append(label)
+
+# 3. 훈련 데이터 / 테스트 데이터 나누기
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, stratify=y, random_state=42)
+
+# 4. KNN으로 학습하고 평가
+model = KNeighborsClassifier(n_neighbors=3)
+model.fit(X_train, y_train)
+print('정확도:', accuracy_score(y_test, model.predict(X_test)))
+
+# 5. Gradio 웹 앱
+def classify(img):
+    p = model.predict_proba([feature(img)])[0]
+    return {CLASSES[i]: float(p[i]) for i in range(len(CLASSES))}
+
+gr.Interface(classify, gr.Image(type='pil', sources=['webcam', 'upload']),
+             gr.Label()).launch(share=True)   # 공유 링크 만들기`;
+function hl(line){
+  if(line.trim().startsWith('!')) return '<span class="t">'+esc(line)+'</span>';
+  let code=line, cmt='';
+  const m=line.match(/(^|\s)(#.*)$/); if(m){ cmt=m[2]; code=line.slice(0,line.length-cmt.length); }
+  const h=esc(code).replace(/(&#39;[^&]*?&#39;)/g,'<span class="s">$1</span>')
+    .replace(/\b(import|from|def|for|in|return|as|print)\b/g,'<span class="k">$1</span>');
+  return h+(cmt?'<span class="c">'+esc(cmt)+'</span>':'');
+}
+async function typeInto(el,text,speed){ el.classList.add('caret'); for(let i=0;i<=text.length;i++){ el.textContent=text.slice(0,i); await sleep(speed);} el.classList.remove('caret'); }
+let vibeRunning=false;
+$('startVibe').onclick=async()=>{
+  if(vibeRunning) return; vibeRunning=true;
+  $('startVibe').textContent='⏳ 시연 중…'; $('chat').innerHTML=''; $('code').innerHTML=''; $('runApp').classList.add('hidden'); $('lines').textContent='0'; $('tm').textContent='00:00';
+  const me=document.createElement('div'); me.className='bubble me'; $('chat').appendChild(me); await typeInto(me,PROMPT,70);
+  await sleep(500);
+  const ai=document.createElement('div'); ai.className='bubble ai'; $('chat').appendChild(ai); await typeInto(ai,REPLY,22);
+  $('genState').textContent='✨ 코드 생성 중…';
+  const t0=Date.now(), tick=setInterval(()=>{ $('tm').textContent='00:'+String(Math.floor((Date.now()-t0)/1000)).padStart(2,'0'); },200);
+  const lines=CODE.split('\n'); let html='';
+  for(let i=0;i<lines.length;i++){ html+=`<span class="ln">${i+1}</span>${hl(lines[i])}\n`; $('code').innerHTML=html; $('code').scrollTop=$('code').scrollHeight; $('lines').textContent=i+1; await sleep(lines[i].trim()?120:40); }
+  clearInterval(tick); $('genState').textContent='✅ 완성!';
+  const done=document.createElement('div'); done.className='bubble ai'; done.textContent='완성했어요! ▶ 버튼으로 실행해 보세요. 🎉'; $('chat').appendChild(done);
+  $('runApp').classList.remove('hidden'); $('startVibe').textContent='↺ 다시 시연'; vibeRunning=false;
+};
+$('runApp').onclick=()=>go(2);
+
+/* ---------------- 도입 ②: 웹 앱 시연과 오분류 ---------------- */
+const CLS=[['캔','#e2e8f0'],['페트병','#38bdf8']];
+const RESULT={can:{p:[95,5],ans:0}, bottle:{p:[7,93],ans:1}, crushed:{p:[31,69],ans:0}};
+$('bars').innerHTML=CLS.map(([n,c],i)=>`<div class="bar-row"><span>${n}</span><div class="bar"><div id="b${i}" style="background:${c}"></div></div><span id="p${i}" style="text-align:right">0%</span></div>`).join('');
+let scanning=false;
+$$('[data-item]').forEach(btn=>btn.onclick=async()=>{
+  if(scanning) return; scanning=true;
+  const key=btn.dataset.item, r=RESULT[key];
+  $('camItem').innerHTML=SVG[key]; $('camHint').textContent='분석 중…'; $('cam').classList.add('scanning'); $('cam').style.borderColor='#0f172a';
+  $('resBig').textContent='🤔'; $('resBig').style.color='#e2e8f0'; $('verdict').className='verdict';
+  for(let k=0;k<9;k++){ const v=Math.round(Math.random()*100); $('b0').style.width=v+'%'; $('p0').textContent=v+'%'; $('b1').style.width=(100-v)+'%'; $('p1').textContent=(100-v)+'%'; await sleep(130); }
+  $('cam').classList.remove('scanning'); $('camHint').textContent='';
+  r.p.forEach((v,i)=>{ $('b'+i).style.width=v+'%'; $('p'+i).textContent=v+'%'; });
+  const pred=r.p[0]>r.p[1]?0:1;
+  $('resBig').textContent=CLS[pred][0];
+  if(pred===r.ans){ $('resBig').style.color='#86efac'; $('cam').style.borderColor='#10b981'; $('verdict').className='verdict ok'; $('verdict').textContent=`⭕ 정답! (${r.p[pred]}% 확신)`; }
+  else{
+    $('resBig').style.color='#fca5a5'; $('cam').style.borderColor='#ef4444';
+    $('verdict').className='verdict bad'; $('verdict').innerHTML=`❌ 오분류! 정답은 <u>캔</u>인데 AI는 <u>페트병</u>(${r.p[pred]}%)이라고 판단했어요.`;
+    $('board').classList.remove('flash-bad'); void $('board').offsetWidth; $('board').classList.add('flash-bad');
+    $('toWhy').classList.remove('hidden');
+  }
+  scanning=false;
+});
+$('toWhy').onclick=()=>go(3);
+
+/* ---------------- 도입 ③: 문제 제기 ---------------- */
+let tmr=null;
+$('startTimer').onclick=()=>{ clearInterval(tmr); let s=60; $('timer').textContent='💭 '+s+'초';
+  tmr=setInterval(()=>{ s--; $('timer').textContent=s>0?'⏱ '+s+'초':'⏰ 시간 끝! 답을 함께 읽어 봐요'; if(s<=0) clearInterval(tmr); },1000); };
+$('showData').onclick=async()=>{
+  clearInterval(tmr); $('qWrap').classList.add('hidden'); $('dataView').classList.remove('hidden');
+  const cols=[['🥫 캔',12,'can','y'],['🧴 페트병',40,'bottle','b']];
+  $('dataWrap').innerHTML=cols.map(([t,n],ci)=>`<div class="dcol"><h4 class="chalk ${cols[ci][3]}">${t} <span style="font-size:22px">${n}장</span></h4><div class="thumbs" id="th${ci}"></div></div>`).join('');
+  $('clues').innerHTML=''; $('insight').classList.add('hidden'); $('showInsight').classList.add('hidden'); $('toBias').classList.add('hidden');
+  cols.forEach(([,n,k],ci)=>{ $('th'+ci).innerHTML=Array.from({length:n},(_,i)=>`<span style="animation-delay:${i*25}ms">${SVG[k]}</span>`).join(''); });
+  await sleep(1300);
+  for(const c of ['🔎 찌그러진 캔 사진: <span class="p">0장</span>','🔎 캔 데이터가 너무 적음: <span class="p">12장 vs 40장</span> (데이터 불균형)','🔎 캔은 모두 <span class="p">똑바로 세운 모습</span>, 배경은 모두 <span class="p">흰 책상</span>']){
+    const d=document.createElement('div'); d.className='clue'; d.innerHTML=c; $('clues').appendChild(d); await sleep(900); }
+  $('showInsight').classList.remove('hidden');
+};
+$('showInsight').onclick=()=>{ $('insight').classList.remove('hidden'); $('showInsight').classList.add('hidden'); $('toBias').classList.remove('hidden'); };
+$('toBias').onclick=()=>go(4);
+$('toAct1').onclick=()=>go(6);
+$('toGoal').onclick=()=>go(5);
+
+/* ---------------- 활동 화면 실시간 현황 ---------------- */
+const COLORS=['#f6f6f0','#fff3a6','#ffc2d1','#b8e4ff','#c8f5c0','#ffd8a8'];
+const CAUSES=['데이터 수 부족','클래스 불균형','배경이 똑같음','조명 차이','각도·모양 다양성 부족','클래스끼리 모양이 비슷함'];
+const ADD_PROMPT = `테스트 데이터로 accuracy_score를 계산해서
+'정확도: 00%' 형태로 크게 출력해 줘.
+confusion_matrix로 혼동행렬을 만들고
+ConfusionMatrixDisplay로 그림으로 그려 줘.
+틀리게 분류한 테스트 사진은 따로 모아서
+'정답 → AI 판단' 제목을 붙여 보여 줘.`;
+$('addPrompt').textContent = ADD_PROMPT;
+let rowsCache=[], seen=null, lastKey=null;
+async function refresh(){
+  let rows; try{ rows=await DB.list(); }catch(e){ $('mode').textContent='● 연결 오류 — 다시 시도 중'; return; }
+  rows=rows.filter(r=>r.data);
+  const key=rows.map(r=>r.team+r.updated_at).join('|'); if(key===lastKey) return; lastKey=key; rowsCache=rows;
+  $$('.cntAll').forEach(e=>e.textContent=rows.length);
+  if(cur===3) drawAns(rows);
+  if(cur===6) drawBoard(rows);
+  if(cur===7) drawCode(rows);
+  if(cur===8) drawRun(rows);
+  if(cur===9) drawEval(rows);
+  if(cur===10) drawGal(rows);
+  if(cur===11) drawSum(rows);
+  if(cur===12) drawAdmin(rows);
+}
+function drawAns(rows){
+  const a1=rows.filter(r=>r.data.q1), a2=rows.filter(r=>r.data.q2);
+  $('q1n').textContent=a1.length+'명'; $('q2n').textContent=a2.length+'명';
+  const li=(list,k)=>list.length?list.map((r,i)=>`<div class="ans" style="color:${COLORS[(i+(k==='q2'?3:0))%COLORS.length]}">"${esc(r.data[k])}" <small>— ${esc(r.team)}</small></div>`).join(''):'<div style="font-size:24px;opacity:.6">답변을 기다리는 중…</div>';
+  $('ans1').innerHTML=li(a1,'q1'); $('ans2').innerHTML=li(a2,'q2');
+}
+function drawBoard(rows){
+  const withTopic=rows.filter(r=>r.data.topic);
+  $('cntSup').textContent=rows.filter(r=>r.data.type==='지도학습').length;
+  const first=seen===null, next={};
+  $('notes').innerHTML = withTopic.length ? withTopic.map((r,i)=>{
+    const d=r.data, sig=d.topic+'|'+(d.classes||[]).join(','), fresh=!first && seen[r.team]!==sig; next[r.team]=sig;
+    const rot=((r.team.charCodeAt(0)+i*7)%5-2)*0.8, cls=(d.classes||[]).filter(Boolean);
+    return `<div class="note chalk ${fresh?'new':''}" style="color:${COLORS[i%COLORS.length]};transform:rotate(${rot}deg);${fresh?'':'animation:none'}">
+      <div class="t">${esc(d.topic)}</div>
+      ${cls.length?`<div class="cl">🏷️ ${cls.map(esc).join(' · ')}</div>`:''}
+      <div class="n">— ${esc(r.team)}${d.algo?` · ${esc(d.algo)}`:''}</div>
+      <button class="del" data-del="${esc(r.team)}" title="지우기">×</button></div>`;
+  }).join('') : '<div class="empty chalk">학생 컴퓨터에서 주제를 쓰고 📤 보내기를 눌러 보세요 ✍️</div>';
+  seen=next;
+}
+function drawRun(rows){
+  $('runN').textContent=rows.filter(r=>r.data.run).length;
+  $('bugN').textContent=rows.reduce((a,r)=>a+(r.data.debug||[]).length,0);
+  $('runGrid').innerHTML=rows.map(r=>{ const d=r.data, n=(d.debug||[]).length;
+    const c=d.run?'run':(n?'fix':'wait'), ic=d.run?'✅':(n?'🔧':'⏳');
+    return `<div class="sbox ${c}"><span>${esc(r.team)}</span><span>${ic}${n?' '+n:''}</span></div>`; }).join('');
+}
+function bestAcc(d){ const a=[d.acc1,d.acc2].filter(v=>v!==''&&v!=null).map(Number); return a.length?Math.max(...a):null; }
+function drawEval(rows){
+  const list=rows.map(r=>({n:r.team,a:bestAcc(r.data)})).filter(x=>x.a!=null).sort((a,b)=>b.a-a.a);
+  $('lb').innerHTML = list.length ? list.map((x,i)=>{ const col=x.a>=90?'#86efac':x.a>=70?'#fde68a':'#fca5a5';
+    return `<div class="lb-row"><span>${i<3?['🥇','🥈','🥉'][i]:i+1}</span><span>${esc(x.n)}</span><div class="lb-bar"><div style="width:${x.a}%;background:${col}"></div></div><span style="text-align:right;color:${col}">${x.a}%</span></div>`; }).join('')
+    : '<div style="font-size:26px;opacity:.7">정확도를 입력한 학생이 아직 없어요</div>';
+  const cnt={}; rows.forEach(r=>(r.data.causes||[]).forEach(c=>cnt[c]=(cnt[c]||0)+1));
+  const max=Math.max(1,...Object.values(cnt));
+  $('tally').innerHTML=CAUSES.map(c=>`<div class="tr"><span>${c}</span><div class="lb-bar"><div style="width:${(cnt[c]||0)/max*100}%;background:#ffc2d1"></div></div><span>${cnt[c]||0}</span></div>`).join('');
+}
+function drawSum(rows){
+  $('doneN').textContent=rows.filter(r=>r.data.done).length;
+  const pairs=rows.filter(r=>r.data.acc1!==''&&r.data.acc1!=null&&r.data.acc2!==''&&r.data.acc2!=null);
+  const avg=pairs.length?Math.round(pairs.reduce((a,r)=>a+(r.data.acc2-r.data.acc1),0)/pairs.length):0;
+  $('avgUp').textContent=(avg>=0?'+':'')+avg;
+  $('chgList').innerHTML = pairs.length ? pairs.map(r=>{ const d=r.data, up=d.acc2-d.acc1;
+    return `<div class="chg"><span>${esc(r.team)}</span><span>${d.acc1}%</span><div class="ln2"></div><span class="y">${d.acc2}%</span><span class="${up>=0?'g':'p'}">${up>=0?'▲'+up:'▼'+(-up)}</span></div>`; }).join('')
+    : '<div style="font-size:24px;opacity:.7">개선 전·후 정확도를 기다리는 중…</div>';
+  const refl=rows.filter(r=>r.data.reflect);
+  $('reflects').innerHTML = refl.length ? refl.map((r,i)=>`<div class="reflect" style="color:${COLORS[i%COLORS.length]}">"${esc(r.data.reflect)}" <span style="opacity:.7;font-size:18px">— ${esc(r.team)}</span></div>`).join('')
+    : '<div style="font-size:24px;opacity:.7">성찰을 기다리는 중…</div>';
+}
+$('eraseBtn').onclick=()=>{ document.body.classList.toggle('eraser'); $('eraseBtn').style.background=document.body.classList.contains('eraser')?'rgba(255,243,166,.5)':''; };
+$('notes').addEventListener('click',async e=>{ const b=e.target.closest('[data-del]'); if(!b) return; try{ await DB.del(b.dataset.del); lastKey=null; refresh(); }catch(err){ toast('지우기 실패'); } });
+/* ---------- 코드 고치기 설명 (교사 화면 전용) ---------- */
+const CSTEPS=[
+  {t:'구글 드라이브에 <span class="y">사진 폴더</span> 만들기', k:0},
+  {t:'코랩에서 <span class="y">드라이브 연결</span>하기', k:1},
+  {t:'바꿀 곳 ① <span class="y">사진 폴더 경로</span> <code>data_dir</code>', k:2},
+  {t:'바꿀 곳 ② <span class="y">내 클래스</span> <code>categories</code>', k:3},
+  {t:'바꿀 곳 ③ <span class="y">내 알고리즘</span> <code>model</code>', k:4},
+  {t:'▶ 위에서부터 <span class="y">차례로 실행</span>하고 확인하기', k:5}
+];
+const ALG_CODE={
+  'KNN':['from sklearn.neighbors import KNeighborsClassifier','model = KNeighborsClassifier(n_neighbors=3)'],
+  '결정 트리':['from sklearn.tree import DecisionTreeClassifier','model = DecisionTreeClassifier(random_state=42)'],
+  'SVM':['from sklearn.svm import SVC','model = SVC(probability=True)']
+};
+let cStep=3, cPick='';
+const EXAMPLE={team:'예시',data:{topic:'캔·페트병·종이 분리수거 분류',classes:['캔','페트병','종이'],algo:'KNN'}};
+function codeFor(d){
+  const cls=(d.classes&&d.classes.length?d.classes:['클래스1','클래스2']).map(c=>`'${c}'`).join(', ');
+  const al=ALG_CODE[d.algo]||ALG_CODE['KNN'];
+  return [
+    [1,'from google.colab import drive'],
+    [1,"drive.mount('/content/drive')   # 드라이브 연결 (권한 허용)"],
+    [-1,''],
+    [2,'# 드라이브의 data 폴더 경로 (폴더 이름이 다르면 수정)'],
+    [2,"data_dir = '/content/drive/MyDrive/data'"],
+    [3,`categories = [${cls}]   # 폴더 이름과 똑같이!`],
+    [-1,''],
+    [-1,'X, y = [], []   # 특징, 정답(레이블)'],
+    [5,'for idx, category in enumerate(categories):'],
+    [5,'    folder_path = os.path.join(data_dir, category)'],
+    [5,'    for file_name in os.listdir(folder_path):'],
+    [5,'        img = Image.open(os.path.join(folder_path, file_name))'],
+    [5,'        X.append(feature(img))'],
+    [5,'        y.append(idx)'],
+    [5,"print('불러온 사진 수:', len(X))"],
+    [-1,''],
+    [-1,'X_train, X_test, y_train, y_test = train_test_split('],
+    [-1,'    X, y, test_size=0.2, stratify=y, random_state=42)'],
+    [-1,''],
+    [4,'# 분류 알고리즘'],
+    [4,al[0]],
+    [4,al[1]],
+    [5,'model.fit(X_train, y_train)'],
+    [5,"print('정확도:', accuracy_score(y_test, model.predict(X_test)))"]
+  ];
+}
+function cDetailHTML(st,d){
+  const cls=(d.classes&&d.classes.length?d.classes:['클래스1','클래스2']);
+  const alg=d.algo||'KNN';
+  if(st===0) return `내 드라이브에 <code>data</code> 폴더를 만들고, 그 안에 <span class="y">클래스 이름 그대로</span> 폴더를 만들어 사진을 넣어요.
+    <div class="tree">MyDrive/
+└─ data/
+${cls.map((c,i)=>`   ${i===cls.length-1?'└':'├'}─ ${esc(c)}/   📷 사진들`).join('\n')}</div>
+    <div style="margin-top:6px">📌 폴더 이름 = <span class="p">레이블(정답)</span>! 클래스마다 사진 수를 비슷하게 맞춰요.</div>`;
+  if(st===1) return `첫 셀을 ▶ 실행하면 구글 계정 권한 창이 떠요. <span class="y">허용</span>을 누르면 <code>/content/drive/MyDrive</code>에서 내 드라이브가 보여요.<div style="margin-top:6px">📌 왼쪽 📁 아이콘을 눌러 data 폴더가 보이는지 확인!</div>`;
+  if(st===2) return `<code>data_dir</code>는 사진 폴더의 <span class="y">주소</span>예요. 폴더를 다른 곳에 만들었다면 이 줄을 바꿔요.<div style="margin-top:6px">💡 왼쪽 📁에서 폴더를 우클릭 → <span class="y">경로 복사</span> → 붙여 넣기하면 오타가 없어요.</div>`;
+  if(st===3) return `내가 정한 레이블을 적어요. <span class="p">폴더 이름과 한 글자라도 다르면</span> 사진을 못 찾아요.<div style="margin-top:6px">📝 지금 예시: <code>categories = [${cls.map(c=>`'${esc(c)}'`).join(', ')}]</code></div><div style="margin-top:6px">✅ 순서대로 <span class="y">0, 1, 2…</span> 번호가 레이블이 돼요.</div>`;
+  if(st===4) return `활동 1에서 고른 <span class="y">${esc(alg)}</span>에 맞게 두 줄을 바꿔요.
+    <div style="margin-top:6px;font-size:.9em">${Object.entries(ALG_CODE).map(([k,v])=>`<div style="margin-bottom:4px;${k===alg?'':'opacity:.55'}">${k===alg?'👉 ':''}<b>${k}</b> <code>${esc(v[1])}</code></div>`).join('')}</div>
+    <div style="margin-top:4px">🔁 같은 데이터로 알고리즘만 바꿔 정확도를 비교해 보세요!</div>`;
+  return `셀을 <span class="y">위에서부터 차례로</span> ▶ 실행해요.
+    <div style="margin-top:6px">✔ <code>불러온 사진 수</code>가 내가 넣은 사진 수와 같은지</div>
+    <div>✔ <code>정확도</code>가 출력되는지</div>
+    <div style="margin-top:6px">🐞 자주 나는 오류</div>
+    <div style="font-size:.88em"><code>FileNotFoundError</code> → 경로·폴더 이름 오타<br><code>UnidentifiedImageError</code> → 사진이 아닌 파일(.heic 등) 빼기<br><code>ModuleNotFoundError</code> → <code>!pip install</code> 먼저 실행</div>`;
+}
+function drawCode(rows){
+  const list=rows.filter(r=>r.data&&r.data.topic&&(r.data.classes||[]).length);
+  const opts=[['',`예시: ${EXAMPLE.data.topic}`]].concat(list.map(r=>[r.team,`${r.team} — ${r.data.topic}`]));
+  const sel=$('cStu'); const keep=cPick;
+  sel.innerHTML=opts.map(([v,t])=>`<option value="${esc(v)}">${esc(t)}</option>`).join('');
+  sel.value = opts.some(o=>o[0]===keep) ? keep : ''; cPick=sel.value;
+  renderCode();
+}
+function renderCode(){
+  const r = cPick ? (rowsCache.find(x=>x.team===cPick)||EXAMPLE) : EXAMPLE, d=r.data;
+  $('cWho').textContent = cPick ? `👩‍🎓 ${cPick} · ${d.algo||'KNN'}` : '예시';
+  $('cSteps').innerHTML=CSTEPS.map((c,i)=>`<button class="cstep ${i===cStep?'on':''}" data-cstep="${i}"><span class="n">${i+1}</span><span>${c.t}</span></button>`).join('');
+  $('cDetail').innerHTML=cDetailHTML(cStep,d);
+  const lines=codeFor(d); let markShown=false;
+  $('cCode').innerHTML=lines.map(([k,l],i)=>{
+    const hot=k===cStep, dim=cStep>=1&&cStep<=4&&!hot&&k!==-2;
+    let mark=''; if(hot&&!markShown&&cStep>=2&&cStep<=4){ mark=`<span class="mark">✏️ 바꿀 곳 ${'①②③'[cStep-2]}</span>`; markShown=true; }
+    return `<span class="row ${hot?'hot':''} ${dim?'dim':''}">${mark}<span class="ln">${i+1}</span>${hl(l)}</span>`;
+  }).join('');
+}
+$('cSteps').addEventListener('click',e=>{ const b=e.target.closest('[data-cstep]'); if(b){ cStep=+b.dataset.cstep; renderCode(); } });
+$('cStu').addEventListener('change',e=>{ cPick=e.target.value; renderCode(); });
+
+/* ---------- 모델 갤러리 ---------- */
+const isUrl=u=>/^https?:\/\/\S+$/i.test(String(u||'').trim());
+function galAgg(rows){
+  const likes={}, cms={};
+  rows.forEach(r=>{ const d=r.data||{};
+    (d.likes||[]).forEach(to=>{ (likes[to]=likes[to]||new Set()).add(r.team); });
+    (d.comments||[]).forEach(c=>{ if(c&&c.to&&c.text) (cms[c.to]=cms[c.to]||[]).push({from:r.team,text:c.text,at:c.at||0}); });
+  });
+  Object.values(cms).forEach(a=>a.sort((x,y)=>x.at-y.at));
+  return {likes,cms};
+}
+function accOf(d){ const a=bestAcc(d); return a==null?'':a+'%'; }
+function drawGal(rows){
+  const {likes,cms}=galAgg(rows);
+  const list=rows.filter(r=>isUrl(r.data.modelUrl)).map(r=>({r,n:(likes[r.team]||new Set()).size})).sort((a,b)=>b.n-a.n);
+  $('gN').textContent=list.length;
+  $('gL').textContent=Object.values(likes).reduce((a,s)=>a+s.size,0);
+  $('gC').textContent=Object.values(cms).reduce((a,c)=>a+c.length,0);
+  $('tGal').innerHTML = list.length ? list.map(({r,n},i)=>{ const d=r.data, c=(cms[r.team]||[]).slice(-2);
+    return `<div class="gcard chalk">${n>0&&i<3?`<span class="rank">${['🥇','🥈','🥉'][i]}</span>`:''}
+      <div class="gt" style="color:${COLORS[i%COLORS.length]}">${esc(d.topic||'분류 AI')}</div>
+      <div class="gm">— ${esc(r.team)} · ${esc(d.algo||'')}${accOf(d)?' · 정확도 <span class="y">'+accOf(d)+'</span>':''}</div>
+      ${d.modelHow?`<div class="gh">🕹️ ${esc(d.modelHow)}</div>`:''}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px"><span class="glike">❤️ ${n}</span><a href="${esc(d.modelUrl.trim())}" target="_blank" rel="noopener noreferrer" style="font-size:19px">🔗 열어 보기</a></div>
+      ${c.length?`<div class="gc">${c.map(x=>`💬 ${esc(x.text)} <span style="opacity:.7;font-size:16px">— ${esc(x.from)}</span>`).join('<br>')}</div>`:''}
+    </div>`; }).join('') : '<div class="empty chalk">정확도를 확인한 친구부터 모델 링크를 보내 주세요! 🌐</div>';
+}
+function fmtTime(iso){ try{ return new Date(iso).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
+function drawAdmin(rows){
+  $('admRoom').textContent=CONFIG.ROOM; $('admN').textContent=rows.length;
+  const ok=v=>v?'✅':'—';
+  $('admTbl').innerHTML = rows.length ? `<table><tr><th>이름</th><th>도입 답변</th><th>분류 주제</th><th>알고리즘</th><th>실행</th><th>정확도</th><th>제출</th><th>마지막 보낸 시각</th><th></th></tr>${
+    rows.map(r=>{ const d=r.data||{}; return `<tr><td><b>${esc(r.team)}</b></td><td>${ok(d.q1||d.q2)}</td><td>${esc(d.topic||'—')}</td><td>${esc(d.algo||'—')}</td><td>${ok(d.run)}</td><td>${d.acc1!==''&&d.acc1!=null?esc(d.acc1)+'%':'—'} → ${d.acc2!==''&&d.acc2!=null?esc(d.acc2)+'%':'—'}</td><td>${ok(d.done)}</td><td>${fmtTime(r.updated_at)}</td><td><button class="del1" data-del1="${esc(r.team)}">🗑️ 지우기</button></td></tr>`; }).join('')
+  }</table>` : '<div style="padding:30px;text-align:center;color:#8a8175">학생이 보낸 기록이 없어요.</div>';
+}
+function armBtn(btn,label,armLabel){
+  if(btn.classList.contains('arm')) return true;
+  btn.classList.add('arm'); btn.textContent=armLabel;
+  clearTimeout(btn._t); btn._t=setTimeout(()=>{ btn.classList.remove('arm'); btn.textContent=label; },4000);
+  return false;
+}
+$('admTbl').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-del1]'); if(!b) return;
+  if(!armBtn(b,'🗑️ 지우기','한 번 더 누르면 삭제')) return;
+  try{ await DB.del(b.dataset.del1); toast('🗑️ '+b.dataset.del1+' 학생 기록을 지웠어요'); lastKey=null; refresh(); }catch(err){ toast('⚠ 지우기 실패'); }
+});
+$('admAll').onclick=async()=>{
+  const n=rowsCache.length;
+  if(!armBtn($('admAll'),'🗑️ 전체 기록 지우기',`⚠ 한 번 더 누르면 ${n}명 기록이 모두 지워져요`)) return;
+  try{ await DB.delAll(); $('admAll').classList.remove('arm'); $('admAll').textContent='🗑️ 전체 기록 지우기'; seen=null; lastKey=null; toast('🗑️ 모든 기록을 지웠어요'); refresh(); }
+  catch(err){ toast('⚠ 지우기 실패 — Supabase 삭제 권한(SQL)을 확인해 주세요'); }
+};
+$('admCopy').onclick=()=>{
+  const head=['이름','왜 틀렸을까','무엇을 바꿔야','분류 주제','레이블','유형','알고리즘','선택 이유','실행 성공','디버깅 기록','개선 전 정확도','오분류 원인','개선 방법','개선 후 정확도','배운 점','데이터 편향 생각','제출','모델 링크','받은 좋아요','받은 댓글'];
+  const AG=galAgg(rowsCache);
+  const clean=v=>String(v??'').replace(/[\t\n\r]+/g,' ');
+  const lines=[head.join('\t')].concat(rowsCache.map(r=>{ const d=r.data||{}; return [r.team,d.q1,d.q2,d.topic,(d.classes||[]).join(', '),d.type,d.algo,d.why,d.run?'O':'',(d.debug||[]).map(x=>x.err+' → '+x.fix).join(' / '),d.acc1,(d.causes||[]).join(', '),d.improve,d.acc2,d.reflect,d.ethic,d.done?'O':'',d.modelUrl,(AG.likes[r.team]||new Set()).size,(AG.cms[r.team]||[]).map(x=>x.from+': '+x.text).join(' / ')].map(clean).join('\t'); }));
+  copyText(lines.join('\n'));
+};
+function makeQR(){ const u=CONFIG.STUDENT_URL||location.href.split('#')[0]; $$('.joinUrl').forEach(e=>e.textContent=u); }
+/* =========================================================
+   학생: 디지털 학습지
+   ========================================================= */
+const TYPES=[['지도학습','정답(레이블)이 있는 데이터로 학습'],['비지도학습','레이블 없이 비슷한 것끼리 묶기'],['강화학습','보상을 받으며 행동을 배우기']];
+const ALGOS=[['KNN','가장 가까운 이웃 k개의 레이블로 판단','KNeighborsClassifier'],['결정 트리','예/아니요 질문을 이어 가며 판단','DecisionTreeClassifier'],['SVM','클래스 사이에 가장 넓은 경계선을 그어 판단','SVC']];
+const TABS=['① 주제·프롬프트','② 바이브 코딩','③ 성능 평가','⑤ 정리','👀 모두의 화면','💭 도입 질문','④ 모델 갤러리'];
+const TAB_ORDER=[5,0,1,2,6,3,4];
+const NAV_SEQ=[5,0,1,2,6,3];
+let S=null, tab=5, saveT=null;
+function blank(name){ return {name,topic:'',classes:['',''],type:'',algo:'',why:'',perClass:30,split:80,run:false,debug:[],acc1:'',acc2:'',causes:[],improve:'',reflect:'',ethic:'',done:false,q1:'',q2:'',modelUrl:'',modelHow:'',likes:[],comments:[]}; }
+function payload(){ const {name,savedAt,joinedAt,...d}=S; d.classes=d.classes.map(c=>c.trim()).filter(Boolean); d.prompt=buildPrompt(false); return d; }
+let dirty=false;
+function save(){ S.savedAt=Date.now(); ls('cls5_me_'+CONFIG.ROOM,S); }
+function markDirty(){ dirty=true; const b=document.querySelector('.sendbar'); if(b){ b.classList.add('dirty'); b.querySelector('span').textContent='✏️ 아직 보내지 않은 내용이 있어요'; } }
+async function send(msg){
+  try{ const ra=await DB.resetAt(); if(ra && ra>(S.joinedAt||0)){ const n=S.name; S=blank(n); S.joinedAt=Date.now(); dirty=false; tab=5; renderSheet(); save(); toast('🧹 선생님이 기록을 초기화했어요. 처음부터 다시 써 주세요'); return; } }catch(e){}
+  save();
+  try{ await DB.put(S.name,payload()); dirty=false; toast(msg||'📤 보냈어요! 칠판 화면에 떴어요'); }
+  catch(e){ toast('⚠ 보내기 실패 — 인터넷 연결을 확인하고 다시 눌러 주세요'); }
+  const b=document.querySelector('.sendbar'); if(b && !dirty){ b.classList.remove('dirty'); b.querySelector('span').textContent='✅ 보낸 내용이 칠판 화면에 떠 있어요'; }
+}
+function sendBar(label){ return `<div class="sendbar ${dirty?'dirty':''}"><span>${dirty?'✏️ 아직 보내지 않은 내용이 있어요':'✅ 보낸 내용이 칠판 화면에 떠 있어요'}</span><button class="send" data-send="1">📤 ${label||'보내기'}</button></div>`; }
+
+function buildPrompt(html){
+  const V=t=>html?`<span class="v">${esc(t)}</span>`:t, Hh=t=>html?`<span class="h">${t}</span>`:t;
+  const cls=S.classes.map(c=>c.trim()).filter(Boolean);
+  const MOD={'KNN':'sklearn.neighbors의 KNeighborsClassifier','결정 트리':'sklearn.tree의 DecisionTreeClassifier','SVM':'sklearn.svm의 SVC(probability=True)'};
+  const algoTxt = S.algo ? `${S.algo} — ${MOD[S.algo]}` : '(알고리즘을 골라 주세요)';
+  return [
+    Hh('[목표]'), `구글 코랩에서 '${V(S.topic||'분류 주제')}'을(를) 하는 이미지 분류 웹 앱을 만들어 줘.`, '코드는 단계별로 셀을 나누고, 셀마다 무엇을 하는지 설명해 줘.', '',
+    Hh('[학습 방식]'), `- ${V(S.type||'(기계학습 유형)')}`, '- 사진 특징 추출: TensorFlow의 MobileNetV2(imagenet, include_top=False, pooling=\'avg\')', `- 분류 알고리즘: ${V(algoTxt)}`, '',
+    Hh(`[레이블(클래스) ${cls.length}개]`), cls.length?cls.map((c,i)=>`${i+1}. ${V(c)}`).join('\n'):V('(클래스를 정해 주세요)'), '',
+    Hh('[데이터]'),
+    `- 구글 드라이브의 data 폴더 안에 클래스 이름으로 폴더를 만들고, 클래스마다 사진을 ${V(S.perClass+'장')}씩 넣을 거야.`,
+    '- 드라이브를 연결하고, 폴더 이름을 레이블로 써서 사진을 불러와 줘.', '',
+    Hh('[훈련 데이터와 테스트 데이터]'),
+    `- train_test_split으로 ${V(S.split+'%')}는 훈련 데이터, ${V((100-S.split)+'%')}는 테스트 데이터로 나눠 줘. (stratify 사용)`, '',
+    Hh('[웹 앱]'), '- Gradio로 웹캠 촬영 또는 사진 업로드를 하면 클래스별 확률(%)을 보여 주는 화면을 만들어 줘.', '- launch(share=True)로 친구에게 보낼 수 있는 공유 링크도 만들어 줘.', '',
+    Hh('[조건]'), '- 코드에 한국어 주석을 달아서 고등학생이 이해할 수 있게 해 줘.'
+  ].join('\n');
+}
+function execCopy(t){
+  const ta=document.createElement('textarea'); ta.value=t; ta.setAttribute('readonly','');
+  ta.style.cssText='position:fixed;top:0;left:0;width:1px;height:1px;opacity:0';
+  document.body.appendChild(ta); ta.focus(); ta.select(); ta.setSelectionRange(0,t.length);
+  let ok=false; try{ ok=document.execCommand('copy'); }catch(e){}
+  ta.remove(); return ok;
+}
+async function copyText(t){
+  // 1) 클립보드 API → 2) execCommand → 3) 복사 창(버튼 포함)
+  try{ if(navigator.clipboard && window.isSecureContext){ await navigator.clipboard.writeText(t); toast('📋 복사했어요! AI에게 붙여 넣으세요'); return; } }catch(e){}
+  if(execCopy(t)){ toast('📋 복사했어요! AI에게 붙여 넣으세요'); return; }
+  $('modalRoot').innerHTML=`<div class="modal-bg"><div class="modal"><b>📋 복사하기</b>
+    <textarea id="mta" readonly style="width:100%;height:260px;margin-top:8px;border:1px solid #ddd;border-radius:8px;padding:8px;font-size:13px">${esc(t)}</textarea>
+    <div style="display:flex;gap:8px;margin-top:8px;align-items:center"><button class="send" id="mcopy">📋 복사</button><button class="mini" id="mclose">닫기</button><span id="mmsg" style="font-size:13px;color:#6b6257"></span></div></div></div>`;
+  const ta=$('mta'); ta.focus(); ta.select();
+  $('mcopy').onclick=async()=>{
+    ta.focus(); ta.select(); ta.setSelectionRange(0,ta.value.length);
+    let ok=false; try{ ok=document.execCommand('copy'); }catch(e){}
+    if(!ok){ try{ await navigator.clipboard.writeText(t); ok=true; }catch(e){} }
+    $('mmsg').textContent = ok ? '✅ 복사됐어요!' : '선택된 글을 Ctrl+C 로 복사해 주세요';
+    if(ok) setTimeout(()=>{ $('modalRoot').innerHTML=''; toast('📋 복사했어요! AI에게 붙여 넣으세요'); },600);
+  };
+  $('mclose').onclick=()=>$('modalRoot').innerHTML='';
+}
+function doneMark(){ return [ !!(S.topic&&S.classes.filter(c=>c.trim()).length>=2&&S.type&&S.algo), S.run, S.acc1!==''&&S.acc2!=='', S.done, false, !!(S.q1&&S.q2), isUrl(S.modelUrl) ]; }
+function renderTabs(){ const d=doneMark(); $('stabs').innerHTML=TAB_ORDER.map(i=>`<button class="stab ${i===tab?'on':''} ${d[i]?'done':''}" data-tab="${i}">${TABS[i]}</button>`).join(''); }
+function nav(prevTxt,nextTxt){ return `<div class="navrow">${prevTxt?`<button class="mini" data-nav="-1">← ${prevTxt}</button>`:'<span></span>'}${nextTxt?`<button class="mini fill" data-nav="1">${nextTxt} →</button>`:''}</div>`; }
+
+function renderSheet(){
+  renderTabs(); const el=$('sheet');
+  if(tab===5){
+    el.innerHTML=`
+      <h2>💭 도입 질문</h2>
+      <p class="desc">선생님이 보여 준 분리수거 AI는 찌그러진 캔을 <b>페트병</b>이라고 판단했어요. 내 생각을 쓰고 <b>📤 답 보내기</b>를 누르면 칠판 화면에 바로 떠요.</p>
+      <div class="fld"><label>🤔 AI는 왜 틀렸을까?</label><textarea id="fQ1" rows="3" maxlength="80" placeholder="예: 찌그러진 캔 사진으로는 학습한 적이 없어서">${esc(S.q1)}</textarea></div>
+      <div class="fld"><label>🔧 무엇을 바꿔야 할까?</label><textarea id="fQ2" rows="3" maxlength="80" placeholder="예: 여러 모양의 캔 사진을 더 많이 모아서 다시 학습시킨다">${esc(S.q2)}</textarea></div>
+      ${sendBar('답 보내기')}
+      <div class="navrow"><span></span><button class="mini fill" data-goto="0">활동 1로 →</button></div>`;
+  }
+  if(tab===0){
+    const typeHint = S.type && S.type!=='지도학습' ? `<div class="hintbox">🤔 캔·페트병처럼 <b>정답(레이블)이 정해진 분류 문제</b>라면 어떤 유형이 알맞을까요?</div>` : S.type ? '<div class="okbox">👍 레이블이 있는 데이터로 분류하니 지도학습이 알맞아요!</div>' : '';
+    el.innerHTML=`
+      <h2>활동 1. 분류 문제 정의와 프롬프트 설계</h2>
+      <p class="desc">주제를 정하고, 개념을 프롬프트 안에 직접 넣어 보세요. <b>📤 보내기</b>를 누르면 주제가 칠판 화면에 떠요.</p>
+      <div class="fld"><label>분류 주제</label><input type="text" id="fTopic" maxlength="40" value="${esc(S.topic)}" placeholder="예: 캔·페트병 분리수거 분류, 가위바위보 손동작 분류"></div>
+      <div class="fld"><label>레이블(클래스) <span class="ctag">레이블</span></label>
+        ${S.classes.map((c,i)=>`<div class="cls-row"><span class="no">${i+1}</span><input data-c="${i}" value="${esc(c)}" placeholder="클래스 이름"><button class="xb" data-cdel="${i}" ${S.classes.length<=2?'disabled':''}>×</button></div>`).join('')}
+        ${S.classes.length<5?'<button class="mini" id="addC">+ 클래스 추가</button>':''}</div>
+      <div class="fld"><label>기계학습 유형 <span class="ctag">지도학습</span></label>
+        <div class="opts">${TYPES.map(([t,d])=>`<button class="opt ${S.type===t?'sel':''}" data-type="${t}">${t}<small>${d}</small></button>`).join('')}</div>${typeHint}</div>
+      <div class="fld"><label>분류 알고리즘 (하나만 선택)</label>
+        <div class="opts">${ALGOS.map(([t,d,c])=>`<button class="opt ${S.algo===t?'sel':''}" data-algo="${t}">${t}<small>${d}</small><small style="font-family:ui-monospace,Consolas,monospace;opacity:.75">sklearn · ${c}</small></button>`).join('')}</div></div>
+      <div class="fld"><label>이 유형과 알고리즘을 고른 이유</label><input type="text" id="fWhy" value="${esc(S.why)}" placeholder="예: 정답이 있는 사진을 분류하고, 적은 데이터로도 빠르게 학습할 수 있어서"></div>
+      <div class="fld"><label>클래스당 데이터 수</label><div class="rng"><input type="range" id="fPer" min="5" max="100" step="5" value="${S.perClass}"><b>${S.perClass}장</b></div></div>
+      <div class="fld"><label>훈련 데이터 : 테스트 데이터 <span class="ctag">훈련·테스트</span></label>
+        <div class="rng"><input type="range" id="fSplit" min="50" max="95" step="5" value="${S.split}"><b>${S.split} : ${100-S.split}</b></div>
+        <div class="split"><div style="width:${S.split}%;background:#2f5a43">훈련 ${S.split}%</div><div style="width:${100-S.split}%;background:#d97706">테스트 ${100-S.split}%</div></div></div>
+      <div class="fld"><label>📝 완성된 프롬프트</label><div class="pbox" id="pbox">${buildPrompt(true)}</div>
+        <div style="margin-top:8px"><button class="mini fill" id="copyP">📋 프롬프트 복사</button></div></div>
+      ${sendBar('주제 보내기')}
+      ${nav('', '활동 2로')}`;
+  }
+  if(tab===1){
+    el.innerHTML=`
+      <h2>활동 2. 바이브 코딩으로 분류 웹 앱 만들기</h2>
+      <p class="desc">프롬프트를 생성형 AI에 보내 코드를 받고, <b>구글 코랩</b> 셀에 붙여 넣어 실행해 보세요. 오류가 나면 빨간 오류 메시지의 마지막 줄을 AI에게 보내 고쳐요. 기록 추가와 실행 체크는 누르는 즉시 칠판 화면에 보내져요.</p>
+      <div class="fld"><label>1) 프롬프트 다시 복사하기</label><button class="mini" id="copyP">📋 활동 1 프롬프트 복사</button></div>
+      <div class="fld"><label>2) 🔧 디버깅 기록</label>
+        <input type="text" id="fErr" placeholder="어떤 오류가 났나요? (예: ModuleNotFoundError: No module named 'gradio')" style="margin-bottom:6px">
+        <input type="text" id="fFix" placeholder="AI에게 뭐라고 요청해서 고쳤나요?">
+        <div style="margin-top:6px"><button class="mini fill" id="addBug">+ 기록 추가</button></div>
+        <div class="log">${S.debug.map((b,i)=>`<div>🐞 <b>${esc(b.err)}</b><br>🛠️ ${esc(b.fix)}</div>`).join('')||'<div style="color:#8a8175">아직 기록이 없어요. 오류 없이 한 번에 되면 바로 아래를 체크하세요!</div>'}</div></div>
+      <div class="fld"><label>3) 실행 결과</label>
+        <button class="opt ${S.run?'sel':''}" id="runOk" style="width:100%;font-size:16px">${S.run?'✅ 코랩에서 내 분류 웹 앱(Gradio)이 실행돼요!':'⬜ 코랩에서 내 분류 웹 앱(Gradio)이 실행되면 눌러 주세요'}</button></div>
+      ${sendBar()}
+      ${nav('활동 1','활동 3으로')}`;
+  }
+  if(tab===2){
+    el.innerHTML=`
+      <h2>활동 3. AI 분류 성능 평가</h2>
+      <p class="desc">정확도가 자동으로 표시되는 기능을 프롬프트로 추가하고, 오분류 원인을 분석해 개선해 보세요.</p>
+      <div class="fld"><label>1) 추가 프롬프트</label><div class="pbox">${esc(ADD_PROMPT)}</div><div style="margin-top:6px"><button class="mini fill" id="copyAdd">📋 추가 프롬프트 복사</button></div></div>
+      <div class="fld"><label>2) 개선 전 정확도 <span class="ctag">테스트 데이터</span></label><input type="number" id="fAcc1" min="0" max="100" value="${esc(S.acc1)}" placeholder="코랩에 출력된 정확도 (%)"></div>
+      <div class="fld"><label>3) 오분류 원인은? (여러 개 선택)</label><div class="opts">${CAUSES.map(c=>`<button class="opt ${S.causes.includes(c)?'sel':''}" data-cause="${c}">${c}</button>`).join('')}</div></div>
+      <div class="fld"><label>4) 어떻게 개선했나요? (데이터 또는 프롬프트)</label><input type="text" id="fImp" value="${esc(S.improve)}" placeholder="예: 찌그러진 캔 사진 10장과 다른 배경 사진을 추가함"></div>
+      <div class="fld"><label>5) 개선 후 정확도</label><input type="number" id="fAcc2" min="0" max="100" value="${esc(S.acc2)}" placeholder="다시 학습한 뒤 정확도 (%)"></div>
+      ${S.acc1!==''&&S.acc2!==''?`<div class="${S.acc2>=S.acc1?'okbox':'hintbox'}">정확도 변화: <b>${S.acc1}% → ${S.acc2}% (${S.acc2-S.acc1>=0?'+':''}${S.acc2-S.acc1}%p)</b></div>`:''}
+      ${sendBar('정확도 보내기')}
+      <div class="hintbox">🌐 정확도를 확인했다면 <b>④ 모델 갤러리</b>에서 내 모델 링크를 보내고 친구들의 모델을 체험해 보세요!</div>
+      ${nav('활동 2','모델 갤러리로')}`;
+  }
+  if(tab===3){
+    const up = S.acc1!==''&&S.acc2!=='' ? (S.acc2-S.acc1) : null;
+    el.innerHTML=`
+      <h2>정리. 디지털 학습지 제출</h2>
+      <p class="desc">프롬프트 기록, 성능 변화, 성찰을 확인하고 제출하세요.</p>
+      <div class="summary">
+        <div>분류 주제<b style="font-size:16px;margin-top:6px">${esc(S.topic||'-')}</b></div>
+        <div>해결한 오류<b>${S.debug.length}개</b></div>
+        <div>정확도 변화<b>${up===null?'-':(up>=0?'+':'')+up+'%p'}</b></div>
+      </div>
+      <div class="fld"><label>📝 내 프롬프트 기록</label><div class="pbox" style="max-height:180px">${buildPrompt(true)}\n\n<span class="h">[추가 프롬프트]</span>\n${esc(ADD_PROMPT)}</div></div>
+      <div class="fld"><label>💬 오늘 배운 점 (한 문장)</label><input type="text" id="fRef" maxlength="60" value="${esc(S.reflect)}" placeholder="예: AI의 성능은 코드보다 데이터의 양과 다양성에 달려 있다"></div>
+      <div class="fld"><label>⚖️ 데이터가 한쪽으로 치우치면 어떤 문제가 생길까요?</label><textarea id="fEth" rows="2" placeholder="예: 특정 모양이나 사람만 잘 인식해서 불공정한 결과가 나올 수 있다">${esc(S.ethic)}</textarea></div>
+      <button class="mini fill" id="submitBtn" style="width:100%;padding:13px;font-size:16px">${S.done?'✅ 제출 완료 (다시 누르면 수정본 보내기)':'📤 디지털 학습지 제출하기'}</button>
+      ${nav('모델 갤러리','')}`;
+  }
+  if(tab===6){
+    el.innerHTML=`
+      <h2>④ 모델 갤러리</h2>
+      <p class="desc">내 분류 AI의 공유 링크를 보내고, 친구들의 모델을 체험해 보세요. 정말 잘 만들었다면 ❤️ 좋아요와 💬 댓글을 남겨 주세요.</p>
+      <div class="fld"><label>🔗 내 모델 링크 (Gradio 공유 링크)</label><input type="text" id="fUrl" value="${esc(S.modelUrl)}" placeholder="예: https://1234abcd.gradio.live"></div>
+      <div class="hintbox">💡 코랩에서 <code>launch(share=True)</code>로 실행하면 <b>Public URL</b>이 나와요. 그 주소를 복사해 붙여 넣으세요. 친구들이 체험하는 동안 <b>코랩을 끄지 마세요!</b></div>
+      <div class="fld"><label>🕹️ 체험 방법 한 줄</label><input type="text" id="fHow" maxlength="50" value="${esc(S.modelHow)}" placeholder="예: 손으로 가위·바위·보를 만들어 웹캠에 보여 주세요"></div>
+      ${sendBar('링크 보내기')}
+      <h3 style="margin:18px 0 8px">🌐 친구들의 모델</h3>
+      <div id="sGal">불러오는 중…</div>
+      ${nav('활동 3','정리로')}`;
+    loadGallery();
+  }
+  if(tab===4){
+    el.innerHTML=`<h2>👀 모두의 화면</h2><p class="desc">친구들이 보낸 답과 분류 주제가 실시간으로 보여요.</p><div id="stuBoard" style="display:flex;flex-direction:column;gap:8px">불러오는 중…</div>`;
+    loadStuBoard();
+  }
+}
+async function loadGallery(){
+  let rows=[]; try{ rows=await DB.list(); }catch(e){ return; }
+  rows=rows.filter(r=>r.data);
+  if(tab!==6 || !$('sGal')) return;
+  const box=$('sGal'), typed={}; let focusTo=null;
+  box.querySelectorAll('.cmIn').forEach(i=>{ typed[i.dataset.to]=i.value; if(document.activeElement===i) focusTo=i.dataset.to; });
+  const {likes,cms}=galAgg(rows);
+  const list=rows.filter(r=>isUrl(r.data.modelUrl)).sort((a,b)=>(a.team===S.name)-(b.team===S.name)||((likes[b.team]||new Set()).size-(likes[a.team]||new Set()).size));
+  box.innerHTML = list.length ? list.map(r=>{ const d=r.data, me=r.team===S.name, lk=likes[r.team]||new Set(), on=S.likes.includes(r.team), c=cms[r.team]||[];
+    return `<div class="sg ${me?'me':''}">
+      <div class="top"><div><h4>${esc(d.topic||'분류 AI')}</h4><div class="meta">${me?'⭐ 내 모델':esc(r.team)} · ${esc(d.algo||'')}${accOf(d)?' · 정확도 '+accOf(d):''}</div>${d.modelHow?`<div class="meta" style="margin-top:3px">🕹️ ${esc(d.modelHow)}</div>`:''}</div>
+        <div style="display:flex;gap:6px;align-items:center"><button class="likeb ${on?'on':''}" data-like="${esc(r.team)}" ${me?'disabled title="내 모델에는 누를 수 없어요"':''}>❤️ ${lk.size}</button><a class="go" href="${esc(d.modelUrl.trim())}" target="_blank" rel="noopener noreferrer">🔗 체험하러 가기</a></div></div>
+      <div class="cms">${c.map(x=>`<div><b>${esc(x.from)}</b> ${esc(x.text)} ${x.from===S.name?`<button class="xs" data-cmdel="${esc(r.team)}|${x.at}" title="내 댓글 지우기">×</button>`:''}</div>`).join('')||'<div style="color:#8a8175">첫 댓글을 남겨 보세요!</div>'}</div>
+      ${me?'':`<div class="cmrow"><input class="cmIn" data-to="${esc(r.team)}" maxlength="60" placeholder="어떤 점이 좋았나요? (예: 찌그러진 캔도 잘 맞혀요!)"><button class="mini fill" data-cm="${esc(r.team)}">💬 등록</button></div>`}
+    </div>`; }).join('') : '<div style="color:#8a8175">아직 링크를 보낸 친구가 없어요.</div>';
+  box.querySelectorAll('.cmIn').forEach(i=>{ if(typed[i.dataset.to]) i.value=typed[i.dataset.to]; if(focusTo===i.dataset.to) i.focus(); });
+}
+async function loadStuBoard(){
+  let rows=[]; try{ rows=await DB.list(); }catch(e){}
+  rows=rows.filter(r=>r.data);
+  if(tab!==4) return;
+  const card=(r,body)=>`<div style="background:#fff;border:${r.team===S.name?'2px solid #2f5a43':'1px solid #e7dece'};border-radius:10px;padding:10px 12px">${body}<div style="font-size:13px;color:#6b6257;margin-top:2px">— ${esc(r.team)}</div></div>`;
+  const qs=rows.filter(r=>r.data.q1||r.data.q2), ts=rows.filter(r=>r.data.topic);
+  $('stuBoard').innerHTML = `
+    <h3 style="margin:4px 0">💭 도입 질문 답변 <small style="color:#6b6257">${qs.length}명</small></h3>
+    ${qs.length?qs.map(r=>card(r,`${r.data.q1?`🤔 ${esc(r.data.q1)}<br>`:''}${r.data.q2?`🔧 ${esc(r.data.q2)}`:''}`)).join(''):'<div style="color:#8a8175">아직 보낸 답이 없어요.</div>'}
+    <h3 style="margin:14px 0 4px">✍️ 분류 주제 <small style="color:#6b6257">${ts.length}명</small></h3>
+    ${ts.length?ts.map(r=>card(r,`<b>${esc(r.data.topic)}</b>${(r.data.classes||[]).length?' · 🏷️ '+r.data.classes.map(esc).join(', '):''}`)).join(''):'<div style="color:#8a8175">아직 보낸 주제가 없어요.</div>'}`;
+}
+
+/* 학습지 이벤트 */
+$('sheet').addEventListener('input',e=>{
+  const t=e.target, id=t.id;
+  if(id==='fTopic') S.topic=t.value;
+  else if(t.dataset.c!==undefined) S.classes[+t.dataset.c]=t.value;
+  else if(id==='fWhy') S.why=t.value;
+  else if(id==='fPer'){ S.perClass=+t.value; t.nextElementSibling.textContent=S.perClass+'장'; }
+  else if(id==='fSplit'){ S.split=+t.value; dirty=true; renderSheet(); save(); return; }
+  else if(id==='fAcc1'){ S.acc1=t.value===''?'':Math.min(100,Math.max(0,+t.value)); }
+  else if(id==='fAcc2'){ S.acc2=t.value===''?'':Math.min(100,Math.max(0,+t.value)); }
+  else if(id==='fImp') S.improve=t.value;
+  else if(id==='fRef') S.reflect=t.value;
+  else if(id==='fEth') S.ethic=t.value;
+  else if(id==='fUrl') S.modelUrl=t.value.trim();
+  else if(id==='fHow') S.modelHow=t.value;
+  else if(t.classList.contains('cmIn')) return;
+  else if(id==='fQ1') S.q1=t.value;
+  else if(id==='fQ2') S.q2=t.value;
+  else return;
+  if($('pbox') && tab===0) $('pbox').innerHTML=buildPrompt(true);
+  renderTabs(); save(); markDirty();
+});
+$('sheet').addEventListener('change',e=>{ if(['fAcc1','fAcc2'].includes(e.target.id)) renderSheet(); });
+$('sheet').addEventListener('click',e=>{
+  const t=e.target.closest('button'); if(!t) return;
+  let sendNow=null, change=true;
+  if(t.dataset.send){
+    if(tab===6 && !isUrl(S.modelUrl)){ toast('🔗 https:// 로 시작하는 링크를 붙여 넣어 주세요'); return; }
+    sendNow = tab===6 ? '🌐 모델 링크를 보냈어요! 갤러리에 떴어요' : '📤 보냈어요! 칠판 화면에 떴어요'; change=false; }
+  else if(t.dataset.like){ const to=t.dataset.like; if(to===S.name) return; S.likes=S.likes.includes(to)?S.likes.filter(x=>x!==to):[...S.likes,to]; sendNow=S.likes.includes(to)?'❤️ 좋아요를 눌렀어요':'좋아요를 취소했어요'; }
+  else if(t.dataset.cm){ const to=t.dataset.cm, inp=[...document.querySelectorAll('.cmIn')].find(i=>i.dataset.to===to), txt=(inp?inp.value:'').trim(); if(!txt){ toast('댓글 내용을 적어 주세요'); return; } S.comments.push({to,text:txt.slice(0,60),at:Date.now()}); if(inp) inp.value=''; sendNow='💬 댓글을 남겼어요'; }
+  else if(t.dataset.cmdel){ const [to,at]=t.dataset.cmdel.split('|'); S.comments=S.comments.filter(c=>!(c.to===to&&String(c.at)===at)); sendNow='🗑️ 댓글을 지웠어요'; }
+  else if(t.dataset.type){ S.type=t.dataset.type; }
+  else if(t.dataset.algo){ S.algo=t.dataset.algo; }
+  else if(t.dataset.cdel!==undefined){ S.classes.splice(+t.dataset.cdel,1); }
+  else if(t.id==='addC'){ S.classes.push(''); }
+  else if(t.dataset.cause){ const c=t.dataset.cause; S.causes=S.causes.includes(c)?S.causes.filter(x=>x!==c):[...S.causes,c]; }
+  else if(t.id==='copyP'){ copyText(buildPrompt(false)); return; }
+  else if(t.id==='copyAdd'){ copyText(ADD_PROMPT); return; }
+  else if(t.id==='addBug'){ const err=$('fErr').value.trim(), fix=$('fFix').value.trim(); if(!err){ toast('어떤 오류였는지 적어 주세요'); return; } S.debug.push({err,fix}); sendNow='🔧 디버깅 기록을 보냈어요!'; }
+  else if(t.id==='runOk'){ S.run=!S.run; sendNow=S.run?'🎉 실행 성공을 보냈어요!':'실행 체크를 취소했어요'; }
+  else if(t.id==='submitBtn'){ S.done=true; sendNow='🚀 제출 완료! 수고했어요'; }
+  else if(t.dataset.goto){ change=false; tab=+t.dataset.goto; window.scrollTo({top:0,behavior:'smooth'}); }
+  else if(t.dataset.nav){ change=false; const i=NAV_SEQ.indexOf(tab); tab=NAV_SEQ[Math.max(0,Math.min(NAV_SEQ.length-1,i+ +t.dataset.nav))]; window.scrollTo({top:0,behavior:'smooth'}); }
+  else return;
+  if(change && !sendNow) dirty=true;
+  if(sendNow) dirty=false;
+  renderSheet(); save();
+  if(sendNow) send(sendNow).then(()=>{ if(tab===6) loadGallery(); });
+});
+$('stabs').addEventListener('click',e=>{ const b=e.target.closest('[data-tab]'); if(b){ tab=+b.dataset.tab; renderSheet(); } });
+$('loginBtn').onclick=async()=>{
+  const n=$('inName').value.trim(); if(!n){ toast('이름을 입력해 주세요'); return; }
+  let prev=ls('cls5_me_'+CONFIG.ROOM);
+  try{ const ra=await DB.resetAt(); if(prev && ra && ra>(prev.savedAt||0)) prev=null; }catch(e){}
+  S = prev && prev.name===n ? Object.assign(blank(n),prev) : blank(n);
+  S.joinedAt=Date.now();
+  if(S.algo && !ALGOS.some(x=>x[0]===S.algo)) S.algo='';
+  $('login').classList.add('hidden'); $('work').classList.remove('hidden'); renderSheet(); send('👋 '+n+' 님, 참여했어요!');
+};
+
+/* ---------------- 시작 ---------------- */
+window.addEventListener('storage',e=>{ if(e.key===LKEY){ if(IS_STU){ if(tab===4) loadStuBoard(); if(tab===6) loadGallery(); } else { refresh(); } } });
+window.addEventListener('hashchange',()=>location.reload());
+$$('[data-role]').forEach(b=>b.onclick=()=>{ location.hash=b.dataset.role; });
+if(!IS_STU && !IS_TCH){
+  $$('.scene').forEach(s=>s.classList.add('hidden')); $('tray').classList.add('hidden'); $('roleSel').classList.remove('hidden');
+}else if(IS_STU){
+  document.body.classList.add('student');
+  $$('.scene').forEach(s=>s.classList.add('hidden')); $('tray').classList.add('hidden'); $('stu').classList.remove('hidden');
+  const prev=ls('cls5_me_'+CONFIG.ROOM); if(prev&&prev.name) $('inName').value=prev.name;
+  setInterval(()=>{ if(tab===4) loadStuBoard(); if(tab===6) loadGallery(); }, CONFIG.POLL_MS+1500);
+}else{
+  const startTeacher=()=>{ go(1); setInterval(()=>{ if(cur===3||cur>=6) refresh(); }, CONFIG.POLL_MS); };
+  let unlocked=!CONFIG.TEACHER_PIN; try{ if(sessionStorage.getItem('cls5_pin')===CONFIG.TEACHER_PIN) unlocked=true; }catch(e){}
+  if(unlocked) startTeacher();
+  else{
+    $$('.scene').forEach(s=>s.classList.add('hidden')); $('tray').classList.add('hidden'); $('pinBox').classList.remove('hidden');
+    const tryPin=()=>{ if($('pinIn').value===CONFIG.TEACHER_PIN){ try{ sessionStorage.setItem('cls5_pin',CONFIG.TEACHER_PIN); }catch(e){} $('pinBox').classList.add('hidden'); $('tray').classList.remove('hidden'); startTeacher(); } else { $('pinMsg').textContent='비밀번호가 달라요'; $('pinIn').value=''; } };
+    $('pinBtn').onclick=tryPin; $('pinIn').addEventListener('keydown',e=>{ if(e.key==='Enter') tryPin(); }); $('pinIn').focus();
+  }
+}
+</script>
+</body>
+</html>
